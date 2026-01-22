@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Next.js Build
+.next/
+out/
+build/
+
+# Environment Variables (Security)
+.env
+.env.local
+
+# Local Database (Don't upload user data!)
+server/data.json
+
+# Logs
+npm-debug.log
