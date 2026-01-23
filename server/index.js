@@ -6,16 +6,25 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
-app.use(express.json());
-app.use(cors());
 
-// --- 1. CONNECT TO SUPABASE ---
-// This uses the URL and KEY you put in your .env file
+// --- 1. FIXED CORS CONFIGURATION (Allows Frontend to Connect) ---
+app.use(cors({
+  origin: '*', // Allow connections from any domain (Fixes the CORS error)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-auth-token']
+}));
+
+// Handle Preflight Requests (Fixes the 404 Preflight error)
+app.options('*', cors());
+
+app.use(express.json());
+
+// --- 2. CONNECT TO SUPABASE ---
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 console.log('✅ Connected to Supabase Client');
 
-// --- 2. MIDDLEWARE (Protect Routes) ---
+// --- 3. MIDDLEWARE (Protect Routes) ---
 const auth = (req, res, next) => {
   const token = req.header('x-auth-token');
   if (!token) return res.status(401).json({ msg: 'No token, authorization denied' });
@@ -29,7 +38,7 @@ const auth = (req, res, next) => {
   }
 };
 
-// --- 3. ROUTES ---
+// --- 4. ROUTES ---
 
 // REGISTER USER
 app.post('/api/auth/register', async (req, res) => {
@@ -118,7 +127,6 @@ app.post('/api/auth/login', async (req, res) => {
 // GET ALL LISTINGS
 app.get('/api/listings', async (req, res) => {
   try {
-    // Get listings and join with users table to get seller name
     const { data, error } = await supabase
       .from('listings')
       .select(`
@@ -129,14 +137,13 @@ app.get('/api/listings', async (req, res) => {
 
     if (error) throw error;
 
-    // Format data for frontend (convert snake_case to camelCase)
     const formattedListings = data.map(listing => ({
       _id: listing.id,
       title: listing.title,
       description: listing.description,
       price: listing.price,
       category: listing.category,
-      imageUrl: listing.image_url, // map database column to frontend name
+      imageUrl: listing.image_url,
       sellerId: listing.seller_id,
       seller: { username: listing.users?.username || 'Unknown' }
     }));
