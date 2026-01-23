@@ -46,7 +46,7 @@ export default function Chat() {
   const fetchInbox = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.get('http://localhost:5000/api/inbox', { headers: { 'x-auth-token': token } });
+      const res = await axios.get('https://hashmarket-platform.vercel.app/api/inbox', { headers: { 'x-auth-token': token } });
       setInbox(res.data);
     } catch (err) { console.error(err); }
   };
@@ -54,7 +54,7 @@ export default function Chat() {
   const fetchMessages = async () => {
     const token = localStorage.getItem('token');
     try {
-      const res = await axios.get(`http://localhost:5000/api/messages/${partnerId}`, { headers: { 'x-auth-token': token } });
+      const res = await axios.get(`https://hashmarket-platform.vercel.app/api/messages/${partnerId}`, { headers: { 'x-auth-token': token } });
       setMessages(res.data);
       const contact = inbox.find(c => c.userId === partnerId);
       if (contact) setPartnerName(contact.username);
@@ -66,7 +66,7 @@ export default function Chat() {
     if (!newMessage.trim()) return;
     const token = localStorage.getItem('token');
     try {
-      await axios.post('http://localhost:5000/api/messages', { toId: partnerId, text: newMessage, type: 'text' }, { headers: { 'x-auth-token': token } });
+      await axios.post('https://hashmarket-platform.vercel.app/api/messages', { toId: partnerId, text: newMessage, type: 'text' }, { headers: { 'x-auth-token': token } });
       setNewMessage('');
       fetchMessages();
     } catch (err) { alert("Failed to send"); }
@@ -78,7 +78,7 @@ export default function Chat() {
     const token = localStorage.getItem('token');
     // Fetch items belonging to the partner (assuming partner is seller)
     try {
-        const res = await axios.get(`http://localhost:5000/api/listings/seller/${partnerId}`, { headers: { 'x-auth-token': token } });
+        const res = await axios.get(`https://hashmarket-platform.vercel.app/api/listings/seller/${partnerId}`, { headers: { 'x-auth-token': token } });
         setSellerItems(res.data);
         setShowOfferModal(true);
     } catch (err) { alert("Could not fetch seller items."); }
@@ -91,7 +91,7 @@ export default function Chat() {
     if(!selectedProduct || !offerDetails.price) return alert("Select item and price");
 
     try {
-      await axios.post('http://localhost:5000/api/messages', { 
+      await axios.post('https://hashmarket-platform.vercel.app/api/messages', { 
           toId: partnerId, 
           text: `Sent an offer for ${selectedProduct.title}`, 
           type: 'offer',
@@ -111,7 +111,7 @@ export default function Chat() {
   const acceptOffer = async (msgId) => {
     const token = localStorage.getItem('token');
     try {
-        await axios.put(`http://localhost:5000/api/messages/offer/${msgId}`, 
+        await axios.put(`https://hashmarket-platform.vercel.app/api/messages/offer/${msgId}`, 
             { status: 'accepted' }, 
             { headers: { 'x-auth-token': token } }
         );
@@ -136,7 +136,7 @@ export default function Chat() {
       setTimeout(async () => {
         const token = localStorage.getItem('token');
         try {
-            await axios.post('http://localhost:5000/api/orders', 
+            await axios.post('https://hashmarket-platform.vercel.app/api/orders', 
                 { listingId: checkoutItem._id, customPrice: checkoutItem.price }, 
                 { headers: { 'x-auth-token': token } }
             );

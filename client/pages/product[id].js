@@ -18,7 +18,7 @@ export default function ProductDetails() {
   const fetchProduct = async () => {
     try {
       // Fetch list and find item by ID
-      const res = await axios.get('http://localhost:5000/api/listings');
+      const res = await axios.get('https://hashmarket-platform.vercel.app/api/listings');
       const found = res.data.find(p => p._id === id);
       setItem(found);
       setLoading(false);

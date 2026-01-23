@@ -20,7 +20,7 @@ export default function Moderation() {
       }
 
       try {
-        const res = await axios.get('http://localhost:5000/api/admin/listings', {
+        const res = await axios.get('https://hashmarket-platform.vercel.app/api/admin/listings', {
           headers: { 'x-auth-token': token }
         });
         setPendingListings(res.data);
@@ -41,7 +41,7 @@ export default function Moderation() {
     const token = localStorage.getItem('token');
     try {
       await axios.put(
-        `http://localhost:5000/api/admin/moderate/${id}`,
+        `https://hashmarket-platform.vercel.app/api/admin/moderate/${id}`,
         { status },
         { headers: { 'x-auth-token': token } }
       );

@@ -21,7 +21,7 @@ export default function Sell() {
     if (!token) { alert("Please login first"); router.push('/login'); return; }
 
     try {
-      await axios.post('http://localhost:5000/api/listings', formData, {
+      await axios.post('https://hashmarket-platform.vercel.app/api/listings', formData, {
         headers: { 'x-auth-token': token }
       });
       alert("Item Listed! It is now PENDING approval.");

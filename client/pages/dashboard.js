@@ -18,7 +18,7 @@ export default function Dashboard() {
     if (!token) { router.push('/login'); return; }
 
     try {
-      const res = await axios.get('http://localhost:5000/api/dashboard', { headers: { 'x-auth-token': token } });
+      const res = await axios.get('https://hashmarket-platform.vercel.app/api/dashboard', { headers: { 'x-auth-token': token } });
       setData(res.data);
       setLoading(false);
     } catch (err) { console.error(err); }
@@ -27,7 +27,7 @@ export default function Dashboard() {
   const updateStatus = async (orderId, newStatus) => {
     const token = localStorage.getItem('token');
     try {
-        await axios.put(`http://localhost:5000/api/orders/${orderId}/status`, 
+        await axios.put(`https://hashmarket-platform.vercel.app/api/orders/${orderId}/status`, 
             { status: newStatus },
             { headers: { 'x-auth-token': token } }
         );

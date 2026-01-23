@@ -46,7 +46,7 @@ export default function Market() {
 
   const fetchListings = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/listings');
+      const res = await axios.get('https://hashmarket-platform.vercel.app/api/listings');
       setListings(res.data);
       setFilteredListings(res.data);
     } catch (err) { console.error(err); }
@@ -75,7 +75,7 @@ export default function Market() {
     setTimeout(async () => {
       const token = localStorage.getItem('token');
       try {
-        await axios.post('http://localhost:5000/api/orders', 
+        await axios.post('https://hashmarket-platform.vercel.app/api/orders', 
           { listingId: selectedItem._id }, 
           { headers: { 'x-auth-token': token } }
         );

@@ -30,7 +30,7 @@ export default function CreateListing() {
     const token = localStorage.getItem('token');
 
     try {
-      await axios.post('http://localhost:5000/api/listings', formData, {
+      await axios.post('https://hashmarket-platform.vercel.app/api/listings', formData, {
         headers: { 'x-auth-token': token }
       });
       alert('Success! Your listing is now PENDING admin approval.');

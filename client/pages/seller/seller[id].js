@@ -19,7 +19,7 @@ export default function SellerProfile() {
   const fetchData = async () => {
     try {
       // 1. Get User Details (Public)
-      const userRes = await axios.get(`http://localhost:5000/api/users/${id}`);
+      const userRes = await axios.get(`https://hashmarket-platform.vercel.app/api/users/${id}`);
       setProfile(userRes.data);
 
       // 2. Get User's Active Listings (using existing or temp token)
@@ -27,7 +27,7 @@ export default function SellerProfile() {
       // We'll simulate a public fetch or require login. 
       const token = localStorage.getItem('token');
       if(token) {
-        const itemsRes = await axios.get(`http://localhost:5000/api/listings/seller/${id}`, {
+        const itemsRes = await axios.get(`https://hashmarket-platform.vercel.app/api/listings/seller/${id}`, {
             headers: { 'x-auth-token': token }
         });
         setItems(itemsRes.data);
