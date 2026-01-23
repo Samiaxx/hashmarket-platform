@@ -7,24 +7,29 @@ require('dotenv').config();
 
 const app = express();
 
-// --- 1. FIXED CORS CONFIGURATION (Allows Frontend to Connect) ---
+// --- 1. CORS CONFIGURATION (Crucial for Vercel) ---
 app.use(cors({
-  origin: '*', // Allow connections from any domain (Fixes the CORS error)
+  origin: '*', // Allow all connections
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'x-auth-token']
 }));
 
-// Handle Preflight Requests (Fixes the 404 Preflight error)
+// Handle Preflight Requests
 app.options('*', cors());
 
+// Parse JSON bodies
 app.use(express.json());
 
 // --- 2. CONNECT TO SUPABASE ---
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-
 console.log('✅ Connected to Supabase Client');
 
-// --- 3. MIDDLEWARE (Protect Routes) ---
+// --- 3. ROOT ROUTE (To test if server is running) ---
+app.get('/', (req, res) => {
+  res.send('Server is running and ready!');
+});
+
+// --- 4. MIDDLEWARE (Protect Routes) ---
 const auth = (req, res, next) => {
   const token = req.header('x-auth-token');
   if (!token) return res.status(401).json({ msg: 'No token, authorization denied' });
@@ -38,7 +43,7 @@ const auth = (req, res, next) => {
   }
 };
 
-// --- 4. ROUTES ---
+// --- 5. ROUTES ---
 
 // REGISTER USER
 app.post('/api/auth/register', async (req, res) => {
@@ -84,7 +89,7 @@ app.post('/api/auth/register', async (req, res) => {
 
   } catch (err) {
     console.error('Register Error:', err.message);
-    res.status(500).send('Server Error');
+    res.status(500).send('Server Error: ' + err.message);
   }
 });
 
@@ -93,7 +98,6 @@ app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    // Find user by email
     const { data: user, error } = await supabase
       .from('users')
       .select('*')
@@ -104,13 +108,11 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ msg: 'Invalid Credentials' });
     }
 
-    // Check password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ msg: 'Invalid Credentials' });
     }
 
-    // Create Token
     const payload = { user: { id: user.id, role: user.role, username: user.username } };
 
     jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5d' }, (err, token) => {
@@ -124,15 +126,12 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// GET ALL LISTINGS
+// GET LISTINGS
 app.get('/api/listings', async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('listings')
-      .select(`
-        *,
-        users (username)
-      `)
+      .select(`*, users (username)`)
       .eq('status', 'APPROVED');
 
     if (error) throw error;
@@ -156,11 +155,10 @@ app.get('/api/listings', async (req, res) => {
   }
 });
 
-// CREATE LISTING (Protected)
+// CREATE LISTING
 app.post('/api/listings', auth, async (req, res) => {
   try {
     const { title, description, price, category, imageUrl } = req.body;
-
     const { data, error } = await supabase
       .from('listings')
       .insert([{
@@ -175,7 +173,6 @@ app.post('/api/listings', auth, async (req, res) => {
       .select();
 
     if (error) throw error;
-
     res.json(data[0]);
 
   } catch (err) {
@@ -184,5 +181,13 @@ app.post('/api/listings', auth, async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// --- 6. START SERVER (Updated for Vercel) ---
+
+// This line allows Vercel to see your app as a Serverless Function
+module.exports = app;
+
+// This block ensures it still runs locally on your computer
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+}
