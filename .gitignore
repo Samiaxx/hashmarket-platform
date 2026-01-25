@@ -2,17 +2,22 @@
 node_modules/
 package-lock.json
 
-# Next.js Build
+# Next.js build output
 .next/
 out/
 build/
 
-# Environment Variables (Security)
+# Environment variables (DO NOT COMMIT)
 .env
 .env.local
 
-# Local Database (Don't upload user data!)
-server/data.json
-
 # Logs
-npm-debug.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local / temp files
+.DS_Store
+
+# Local database / mock data
+server/data.json

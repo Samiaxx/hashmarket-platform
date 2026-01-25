@@ -1,193 +1,259 @@
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const { createClient } = require("@supabase/supabase-js");
+require("dotenv").config();
 
 const app = express();
 
-// --- 1. CORS CONFIGURATION (Crucial for Vercel) ---
-app.use(cors({
-  origin: '*', // Allow all connections
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-auth-token']
-}));
-
-// Handle Preflight Requests
-app.options('*', cors());
-
-// Parse JSON bodies
+/* ===============================
+   CORS + BODY
+================================ */
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
-// --- 2. CONNECT TO SUPABASE ---
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-console.log('✅ Connected to Supabase Client');
+/* ===============================
+   SUPABASE
+================================ */
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
 
-// --- 3. ROOT ROUTE (To test if server is running) ---
-app.get('/', (req, res) => {
-  res.send('Server is running and ready!');
-});
-
-// --- 4. MIDDLEWARE (Protect Routes) ---
+/* ===============================
+   AUTH MIDDLEWARE
+================================ */
 const auth = (req, res, next) => {
-  const token = req.header('x-auth-token');
-  if (!token) return res.status(401).json({ msg: 'No token, authorization denied' });
+  const token = req.header("x-auth-token");
+  if (!token) return res.status(401).json({ msg: "No token" });
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded.user;
     next();
-  } catch (err) {
-    res.status(401).json({ msg: 'Token is not valid' });
+  } catch {
+    res.status(401).json({ msg: "Invalid token" });
   }
 };
 
-// --- 5. ROUTES ---
+/* ===============================
+   ROOT
+================================ */
+app.get("/", (_, res) => {
+  res.send("HashMarket API running");
+});
 
-// REGISTER USER
-app.post('/api/auth/register', async (req, res) => {
+/* ===============================
+   AUTH
+================================ */
+app.post("/api/auth/register", async (req, res) => {
   const { username, email, password, role } = req.body;
 
   try {
-    // Check if user already exists
-    const { data: existingUser } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
+    const { data: existing } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
       .single();
 
-    if (existingUser) {
-      return res.status(400).json({ msg: 'User already exists' });
+    if (existing) {
+      return res.status(400).json({ msg: "User already exists" });
     }
 
-    // Hash the password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashed = await bcrypt.hash(password, 10);
 
-    // Save to Supabase
     const { data, error } = await supabase
-      .from('users')
-      .insert([{ 
-        username, 
-        email, 
-        password: hashedPassword, 
-        role: role || 'buyer' 
-      }])
-      .select();
+      .from("users")
+      .insert([
+        {
+          username,
+          email,
+          password: hashed,
+          role: role || "buyer"
+        }
+      ])
+      .select()
+      .single();
 
     if (error) throw error;
 
-    // Create Token
-    const user = data[0];
-    const payload = { user: { id: user.id, role: user.role, username: user.username } };
-    
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
-    });
+    const payload = { user: { id: data.id, username, role: data.role } };
 
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "5d" }, (_, token) => {
+      res.json({ token, user: payload.user });
+    });
   } catch (err) {
-    console.error('Register Error:', err.message);
-    res.status(500).send('Server Error: ' + err.message);
+    res.status(500).json({ msg: err.message });
   }
 });
 
-// LOGIN USER
-app.post('/api/auth/login', async (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
+    const { data: user } = await supabase
+      .from("users")
+      .select("*")
+      .eq("email", email)
       .single();
 
-    if (error || !user) {
-      return res.status(400).json({ msg: 'Invalid Credentials' });
-    }
+    if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid Credentials' });
-    }
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(400).json({ msg: "Invalid credentials" });
 
-    const payload = { user: { id: user.id, role: user.role, username: user.username } };
+    const payload = {
+      user: { id: user.id, username: user.username, role: user.role }
+    };
 
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5d' }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "5d" }, (_, token) => {
+      res.json({ token, user: payload.user });
     });
-
-  } catch (err) {
-    console.error('Login Error:', err.message);
-    res.status(500).send('Server Error');
+  } catch {
+    res.status(500).send("Server error");
   }
 });
 
-// GET LISTINGS
-app.get('/api/listings', async (req, res) => {
+/* ===============================
+   SELLER PROFILE
+================================ */
+app.get("/api/sellers/:username", async (req, res) => {
+  const { username } = req.params;
+
   try {
-    const { data, error } = await supabase
-      .from('listings')
-      .select(`*, users (username)`)
-      .eq('status', 'APPROVED');
+    const { data: seller } = await supabase
+      .from("users")
+      .select("id, username, avatar, bio, location")
+      .eq("username", username)
+      .single();
 
-    if (error) throw error;
+    if (!seller) return res.status(404).json({ msg: "Seller not found" });
 
-    const formattedListings = data.map(listing => ({
-      _id: listing.id,
-      title: listing.title,
-      description: listing.description,
-      price: listing.price,
-      category: listing.category,
-      imageUrl: listing.image_url,
-      sellerId: listing.seller_id,
-      seller: { username: listing.users?.username || 'Unknown' }
-    }));
+    const { data: listings } = await supabase
+      .from("listings")
+      .select("id")
+      .eq("seller_id", seller.id)
+      .eq("status", "APPROVED");
 
-    res.json(formattedListings);
+    const { data: reviews } = await supabase
+      .from("reviews")
+      .select("rating")
+      .eq("seller_id", seller.id);
 
-  } catch (err) {
-    console.error('Fetch Listings Error:', err.message);
-    res.status(500).send('Server Error');
+    const rating =
+      reviews.length > 0
+        ? (
+            reviews.reduce((a, r) => a + r.rating, 0) / reviews.length
+          ).toFixed(1)
+        : null;
+
+    res.json({
+      ...seller,
+      products: listings.length,
+      reviews: reviews.length,
+      rating
+    });
+  } catch {
+    res.status(500).send("Server error");
   }
 });
 
-// CREATE LISTING
-app.post('/api/listings', auth, async (req, res) => {
+/* ===============================
+   LISTINGS
+================================ */
+app.get("/api/listings", async (req, res) => {
+  const { seller } = req.query;
+
   try {
-    const { title, description, price, category, imageUrl } = req.body;
-    const { data, error } = await supabase
-      .from('listings')
-      .insert([{
-        seller_id: req.user.id,
-        title,
-        description,
-        price,
-        category,
-        image_url: imageUrl,
-        status: 'APPROVED'
-      }])
-      .select();
+    let query = supabase
+      .from("listings")
+      .select("*")
+      .eq("status", "APPROVED");
 
-    if (error) throw error;
-    res.json(data[0]);
+    if (seller) {
+      const { data: user } = await supabase
+        .from("users")
+        .select("id")
+        .eq("username", seller)
+        .single();
 
-  } catch (err) {
-    console.error('Create Listing Error:', err.message);
-    res.status(500).send('Server Error');
+      if (user) query = query.eq("seller_id", user.id);
+    }
+
+    const { data } = await query;
+    res.json(data);
+  } catch {
+    res.status(500).send("Server error");
   }
 });
 
-// --- 6. START SERVER (Updated for Vercel) ---
+app.post("/api/listings", auth, async (req, res) => {
+  const { title, description, price, category, imageUrl } = req.body;
 
-// This line allows Vercel to see your app as a Serverless Function
+  try {
+    const { data } = await supabase
+      .from("listings")
+      .insert([
+        {
+          seller_id: req.user.id,
+          title,
+          description,
+          price,
+          category,
+          image_url: imageUrl,
+          status: "APPROVED"
+        }
+      ])
+      .select()
+      .single();
+
+    res.json(data);
+  } catch {
+    res.status(500).send("Server error");
+  }
+});
+
+/* ===============================
+   REVIEWS
+================================ */
+app.get("/api/reviews/:username", async (req, res) => {
+  const { username } = req.params;
+
+  try {
+    const { data: seller } = await supabase
+      .from("users")
+      .select("id")
+      .eq("username", username)
+      .single();
+
+    if (!seller) return res.json([]);
+
+    const { data } = await supabase
+      .from("reviews")
+      .select(
+        `
+        rating,
+        comment,
+        created_at,
+        users:buyer_id (username)
+      `
+      )
+      .eq("seller_id", seller.id)
+      .order("created_at", { ascending: false });
+
+    res.json(data);
+  } catch {
+    res.status(500).send("Server error");
+  }
+});
+
+/* ===============================
+   EXPORT
+================================ */
 module.exports = app;
 
-// This block ensures it still runs locally on your computer
 if (require.main === module) {
   const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  app.listen(PORT, () => console.log("Server running on", PORT));
 }

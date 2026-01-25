@@ -1,74 +1,211 @@
-import { useState } from 'react';
-import axios from 'axios';
-import { useRouter } from 'next/router';
-import Link from 'next/link';
+import { useState } from "react";
+import { useRouter } from "next/router";
+import API_URL from "../lib/api";
 
 export default function Register() {
   const router = useRouter();
-  const [formData, setFormData] = useState({ 
-    username: '', 
-    email: '', 
-    password: '', 
-    role: 'buyer' 
+
+  const [form, setForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+    role: "buyer",
   });
-  const [error, setError] = useState('');
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
+    setLoading(true);
+
     try {
-      const res = await axios.post('https://hashmarket-platform.vercel.app/api/auth/register', formData);
-      localStorage.setItem('token', res.data.token);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
-      router.push('/market');
-    } catch (err) {
-      setError(err.response?.data?.msg || 'Registration failed');
+      const res = await fetch(`${API_URL}/api/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.msg || "Something went wrong");
+        return;
+      }
+
+      router.push("/market");
+    } catch {
+      setError("Server not reachable");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">Create Account</h1>
-          <p className="text-slate-500">Join the Hybrid Marketplace</p>
+    <div className="page">
+      <div className="card">
+        <h1>Join HashMarket</h1>
+        <p className="subtitle">
+          Buy & sell digital products with confidence
+        </p>
+
+        {error && <p className="error">{error}</p>}
+
+        {/* ROLE SELECTOR */}
+        <div className="role-switch">
+          <button
+            className={form.role === "buyer" ? "active" : ""}
+            onClick={() => setForm({ ...form, role: "buyer" })}
+            type="button"
+          >
+            👤 I’m a Buyer
+            <span>Shop products</span>
+          </button>
+
+          <button
+            className={form.role === "seller" ? "active" : ""}
+            onClick={() => setForm({ ...form, role: "seller" })}
+            type="button"
+          >
+            🛍 I’m a Seller
+            <span>Sell & earn</span>
+          </button>
         </div>
 
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded mb-4 text-center">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <input
+            name="username"
+            placeholder="Username"
+            value={form.username}
+            onChange={handleChange}
+            required
+          />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Username</label>
-            <input name="username" required className="w-full border p-3 rounded-lg" onChange={handleChange} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Email</label>
-            <input name="email" type="email" required className="w-full border p-3 rounded-lg" onChange={handleChange} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Password</label>
-            <input name="password" type="password" required className="w-full border p-3 rounded-lg" onChange={handleChange} />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700">Account Type</label>
-            <select name="role" className="w-full border p-3 rounded-lg bg-white" onChange={handleChange}>
-              <option value="buyer">Buyer (I want to buy)</option>
-              <option value="seller">Seller (I want to sell)</option>
-            </select>
-          </div>
+          <input
+            type="email"
+            name="email"
+            placeholder="Email address"
+            value={form.email}
+            onChange={handleChange}
+            required
+          />
 
-          <button className="w-full bg-emerald-600 text-white py-3 rounded-lg font-bold hover:bg-emerald-700 transition">
-            Create Account
+          <input
+            type="password"
+            name="password"
+            placeholder="Password"
+            value={form.password}
+            onChange={handleChange}
+            required
+          />
+
+          <button disabled={loading}>
+            {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
-        <p className="text-center mt-6 text-slate-600">
-          Already have an account? <Link href="/login" className="text-emerald-600 font-bold hover:underline">Login</Link>
+
+        <p className="footer">
+          Already have an account?{" "}
+          <a href="/login">Sign in</a>
         </p>
       </div>
+
+      <style jsx>{`
+        .page {
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f6f7fb;
+        }
+
+        .card {
+          background: #fff;
+          width: 100%;
+          max-width: 440px;
+          padding: 2.5rem;
+          border-radius: 14px;
+          box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+          margin-bottom: 0.25rem;
+        }
+
+        .subtitle {
+          color: #666;
+          margin-bottom: 1.5rem;
+        }
+
+        .role-switch {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+          margin-bottom: 1.5rem;
+        }
+
+        .role-switch button {
+          border: 1px solid #ddd;
+          background: #fff;
+          padding: 1rem;
+          border-radius: 10px;
+          cursor: pointer;
+          text-align: left;
+          font-weight: 600;
+        }
+
+        .role-switch span {
+          display: block;
+          font-size: 0.85rem;
+          font-weight: 400;
+          color: #666;
+        }
+
+        .role-switch .active {
+          border-color: #4f46e5;
+          background: #eef2ff;
+        }
+
+        form input {
+          width: 100%;
+          padding: 0.9rem;
+          margin-bottom: 1rem;
+          border-radius: 8px;
+          border: 1px solid #ddd;
+        }
+
+        form button {
+          width: 100%;
+          padding: 0.9rem;
+          border-radius: 10px;
+          border: none;
+          background: #4f46e5;
+          color: #fff;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .footer {
+          margin-top: 1.5rem;
+          text-align: center;
+          font-size: 0.9rem;
+        }
+
+        .footer a {
+          color: #4f46e5;
+          font-weight: 600;
+        }
+
+        .error {
+          color: red;
+          margin-bottom: 1rem;
+        }
+      `}</style>
     </div>
   );
 }
