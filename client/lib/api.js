@@ -1,6 +1,2 @@
-const API_URL =
-  process.env.NODE_ENV === "production"
-    ? "https://your-backend.vercel.app" // CHANGE THIS
-    : "http://localhost:5000";
-
+const API_URL = "https://hashmarket-platform.vercel.app";
 export default API_URL;
