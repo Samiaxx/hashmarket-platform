@@ -2,10 +2,11 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { ethers } from 'ethers';
-import { GoogleOAuthProvider, useGoogleLogin } from '@react-oauth/google'; // <--- NEW IMPORT
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from "jwt-decode";
 import API_URL from '../lib/api';
 
-// YOUR GOOGLE CLIENT ID
+// YOUR CLIENT ID
 const GOOGLE_CLIENT_ID = "1097072821368-63877sdog6sqjr8d3rlr9kvcd8hbbe1h.apps.googleusercontent.com";
 
 export default function Login() {
@@ -24,52 +25,46 @@ export default function Login() {
     setError('');
   };
 
-  // 1. GOOGLE LOGIN LOGIC (The New Part)
-  const loginWithGoogle = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        setLoading(true);
-        // We get an access token, now we send it to backend or fetch user info
-        // Note: For security, usually we send the ID Token. 
-        // With 'useGoogleLogin' (implicit flow), we get an access_token. 
-        // We will fetch the user info directly here or send token to backend.
-        
-        // For simplicity with your specific setup, we will fetch the profile here 
-        // and send the email/id to your backend to register/login.
-        const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
-        }).then(res => res.json());
+  // 1. GOOGLE SUCCESS HANDLER (Using jwt-decode)
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const token = credentialResponse.credential;
+      const decoded = jwtDecode(token);
+      
+      // decoded contains: { email, name, picture, sub (googleId) ... }
+      console.log("Google User:", decoded);
 
-        // Send to YOUR Backend
-        const res = await fetch(`${API_URL}/api/auth/google-manual`, { // We will add this route to backend
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            email: userInfo.email, 
-            name: userInfo.name, 
-            picture: userInfo.picture,
-            googleId: userInfo.sub 
-          }),
-        });
+      // Send to Backend to Login/Register
+      const res = await fetch(`${API_URL}/api/auth/google-manual`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: decoded.email, 
+          name: decoded.name, 
+          picture: decoded.picture,
+          googleId: decoded.sub 
+        }),
+      });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.msg || "Google Login Failed");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.msg || "Google Login Failed");
 
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        router.push('/dashboard');
+      // Success
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      router.push('/dashboard');
 
-      } catch (err) {
-        console.error(err);
-        setError("Google Login Failed");
-      } finally {
-        setLoading(false);
-      }
-    },
-    onError: () => setError("Google Login Failed"),
-  });
+    } catch (err) {
+      console.error(err);
+      setError("Google Login Failed");
+    }
+  };
 
-  // 2. METAMASK LOGIN LOGIC
+  const handleGoogleError = () => {
+    setError("Google Login Failed");
+  };
+
+  // 2. METAMASK LOGIN
   const handleWalletLogin = async () => {
     if (!window.ethereum) return alert("Please install MetaMask!");
     setWalletLoading(true);
@@ -101,7 +96,7 @@ export default function Login() {
     }
   };
 
-  // 3. STANDARD LOGIN
+  // 3. EMAIL LOGIN
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -125,7 +120,6 @@ export default function Login() {
   };
 
   return (
-    // WRAPPER REQUIRED FOR GOOGLE
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden">
         
@@ -180,19 +174,15 @@ export default function Login() {
                {walletLoading ? "Connecting..." : <><span className="text-xl">🦊</span> Login with MetaMask</>}
             </button>
             
-            <div className="grid grid-cols-2 gap-3">
-              {/* GOOGLE BUTTON - LIVE */}
-              <button 
-                onClick={() => loginWithGoogle()}
-                className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white text-black font-bold hover:bg-gray-200 transition"
-              >
-                <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" className="w-5 h-5" alt="G" />
-                Google
-              </button>
-              
-              <button className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-950 border border-slate-800 hover:bg-slate-800 text-slate-300 transition font-medium cursor-not-allowed opacity-50" title="Coming Soon">
-                <span> Apple</span>
-              </button>
+            {/* GOOGLE BUTTON */}
+            <div className="flex justify-center w-full">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                theme="filled_blue"
+                shape="pill"
+                width="100%"
+              />
             </div>
           </div>
 
