@@ -3,47 +3,28 @@ import axios from "axios";
 import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
+import API_URL from "../lib/api";
 
 export default function Sell() {
   const router = useRouter();
-
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    price: "",
-    category: "digital",
-    imageUrl: ""
+    title: "", description: "", price: "", category: "digital", imageUrl: ""
   });
 
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const token = localStorage.getItem("token");
-
-    if (!token) {
-      alert("Please login first");
-      router.push("/login");
-      return;
-    }
+    if (!token) return router.push("/login");
 
     try {
       setLoading(true);
-
-      await axios.post(
-        "https://hashmarket-platform.vercel.app/api/listings",
-        formData,
-        { headers: { "x-auth-token": token } }
-      );
-
-      alert("Listing submitted! It will be reviewed shortly.");
-      router.push("/dashboard");
+      await axios.post(`${API_URL}/api/listings`, formData, { headers: { "x-auth-token": token } });
+      router.push("/market");
     } catch (err) {
-      alert(err.response?.data?.msg || "Error creating listing");
+      alert("Error listing item.");
     } finally {
       setLoading(false);
     }
@@ -53,107 +34,60 @@ export default function Sell() {
     <div className="min-h-screen flex flex-col">
       <Navbar />
 
-      <main className="flex-grow bg-[var(--brand-bg)] py-14 px-4">
-        <div className="max-w-xl mx-auto">
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-900">
-              Create a New Listing
-            </h1>
-            <p className="text-slate-500 mt-2">
-              Share your product with buyers on HashMarket. All listings are
-              reviewed to keep the marketplace safe.
-            </p>
+      <main className="flex-grow flex items-center justify-center py-12 px-4">
+        <div className="w-full max-w-2xl">
+          
+          <div className="text-center mb-10">
+            <h1 className="text-3xl font-bold text-white">Create New Listing</h1>
+            <p className="text-gray-400 mt-2">Sell your assets securely for Crypto.</p>
           </div>
 
-          {/* Card */}
-          <div className="card p-8">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Title */}
+          <div className="glass-panel p-8">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              
+              {/* TITLE */}
               <div>
-                <label className="block text-sm font-semibold mb-1">
-                  Listing Title
-                </label>
-                <input
-                  name="title"
-                  required
-                  placeholder="e.g. Premium Landing Page Design"
-                  onChange={handleChange}
-                />
+                <label className="block text-sm font-bold text-gray-400 mb-2">Item Name</label>
+                <input name="title" required placeholder="e.g. 3D Model Pack" className="input-field" onChange={handleChange} />
               </div>
 
-              {/* Price & Category */}
-              <div className="grid grid-cols-2 gap-4">
+              {/* ROW 1 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-semibold mb-1">
-                    Price (USD)
-                  </label>
-                  <input
-                    name="price"
-                    type="number"
-                    required
-                    placeholder="49"
-                    onChange={handleChange}
-                  />
+                  <label className="block text-sm font-bold text-gray-400 mb-2">Price (USD)</label>
+                  <input name="price" type="number" required placeholder="0.00" className="input-field" onChange={handleChange} />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-semibold mb-1">
-                    Category
-                  </label>
-                  <select name="category" onChange={handleChange}>
+                  <label className="block text-sm font-bold text-gray-400 mb-2">Category</label>
+                  <select name="category" className="input-field appearance-none cursor-pointer" onChange={handleChange}>
                     <option value="digital">💻 Digital Product</option>
-                    <option value="physical">📦 Physical Product</option>
+                    <option value="physical">📦 Physical Good</option>
+                    <option value="freelance">🤝 Freelance Service</option>
                   </select>
                 </div>
               </div>
 
-              {/* Image */}
+              {/* IMAGE URL */}
               <div>
-                <label className="block text-sm font-semibold mb-1">
-                  Cover Image (optional)
-                </label>
-                <input
-                  name="imageUrl"
-                  placeholder="https://example.com/image.jpg"
-                  onChange={handleChange}
-                />
-                <p className="text-xs text-slate-400 mt-1">
-                  Use a clear image that represents your product.
-                </p>
+                <label className="block text-sm font-bold text-gray-400 mb-2">Image URL (Optional)</label>
+                <input name="imageUrl" placeholder="https://..." className="input-field" onChange={handleChange} />
               </div>
 
-              {/* Description */}
+              {/* DESCRIPTION */}
               <div>
-                <label className="block text-sm font-semibold mb-1">
-                  Description
-                </label>
-                <textarea
-                  name="description"
-                  rows="4"
-                  required
-                  placeholder="Explain what buyers will receive, delivery details, and any requirements."
-                  onChange={handleChange}
-                />
+                <label className="block text-sm font-bold text-gray-400 mb-2">Description</label>
+                <textarea name="description" rows="4" required placeholder="Describe your item..." className="input-field resize-none" onChange={handleChange} />
               </div>
 
-              {/* Submit */}
-              <button
-                disabled={loading}
-                className="btn-primary w-full mt-4"
-              >
-                {loading ? "Submitting..." : "Submit for Review"}
+              {/* SUBMIT */}
+              <button type="submit" disabled={loading} className="btn-primary w-full py-4 text-lg">
+                {loading ? "Processing..." : "Publish Listing"}
               </button>
-
-              {/* Trust note */}
-              <p className="text-xs text-slate-400 text-center mt-3">
-                Listings typically get reviewed within a few hours.
-              </p>
             </form>
           </div>
+
         </div>
       </main>
-
       <Footer />
     </div>
   );

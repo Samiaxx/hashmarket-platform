@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
 import API_URL from "../lib/api";
 
 export default function Register() {
   const router = useRouter();
-
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
   const [form, setForm] = useState({
     username: "",
     email: "",
@@ -12,12 +15,7 @@ export default function Register() {
     role: "buyer",
   });
 
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,180 +30,133 @@ export default function Register() {
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.msg || "Registration failed");
 
-      if (!res.ok) {
-        setError(data.msg || "Something went wrong");
-        return;
-      }
-
-      router.push("/market");
-    } catch {
-      setError("Server not reachable");
+      router.push("/login");
+    } catch (err) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="page">
-      <div className="card">
-        <h1>Join HashMarket</h1>
-        <p className="subtitle">
-          Buy & sell digital products with confidence
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-[#0B0F19] relative overflow-hidden px-4 font-sans">
+      
+      {/* BACKGROUND GLOW EFFECTS */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-yellow-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-        {error && <p className="error">{error}</p>}
-
-        {/* ROLE SELECTOR */}
-        <div className="role-switch">
-          <button
-            className={form.role === "buyer" ? "active" : ""}
-            onClick={() => setForm({ ...form, role: "buyer" })}
-            type="button"
-          >
-            👤 I’m a Buyer
-            <span>Shop products</span>
-          </button>
-
-          <button
-            className={form.role === "seller" ? "active" : ""}
-            onClick={() => setForm({ ...form, role: "seller" })}
-            type="button"
-          >
-            🛍 I’m a Seller
-            <span>Sell & earn</span>
-          </button>
+      <div className="w-full max-w-md relative z-10">
+        
+        {/* LOGO HEADER */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center gap-3 mb-4 group cursor-pointer no-underline">
+            <div className="w-12 h-12 rounded-xl border border-gray-800 bg-[#111827] flex items-center justify-center shadow-lg group-hover:scale-105 transition">
+              <img src="/logo.png" className="w-8 h-8 object-contain" alt="Logo" />
+            </div>
+          </Link>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight">Create Account</h1>
+          <p className="text-gray-400 mt-2 text-sm">Join the premier decentralized marketplace.</p>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <input
-            name="username"
-            placeholder="Username"
-            value={form.username}
-            onChange={handleChange}
-            required
-          />
+        {/* GLASS CARD */}
+        <div className="p-8 rounded-2xl shadow-2xl border border-gray-800/50 backdrop-blur-xl bg-[#111827]/60 relative overflow-hidden">
+          
+          {/* Subtle top highlight */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-500/50 to-transparent"></div>
 
-          <input
-            type="email"
-            name="email"
-            placeholder="Email address"
-            value={form.email}
-            onChange={handleChange}
-            required
-          />
+          {error && (
+            <div className="mb-6 p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-500 text-xs font-bold text-center">
+              {error}
+            </div>
+          )}
 
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={handleChange}
-            required
-          />
+          {/* ROLE SELECTOR (PREMIUM TOGGLE) */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-[#050505] rounded-xl mb-6 border border-gray-800">
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, role: "buyer" })}
+              className={`py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 ${
+                form.role === "buyer"
+                  ? "bg-gray-800 text-white shadow-lg border border-gray-700"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              🛍️ Buyer
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, role: "seller" })}
+              className={`py-3 rounded-lg text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 ${
+                form.role === "seller"
+                  ? "bg-yellow-500 text-black shadow-lg shadow-yellow-500/20"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >
+              💼 Seller
+            </button>
+          </div>
 
-          <button disabled={loading}>
-            {loading ? "Creating account..." : "Create Account"}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Username</label>
+              <input
+                name="username"
+                required
+                placeholder="CryptoKing"
+                className="w-full bg-[#0B0F19] border border-gray-700 text-white placeholder-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition"
+                onChange={handleChange}
+              />
+            </div>
 
-        <p className="footer">
-          Already have an account?{" "}
-          <a href="/login">Sign in</a>
-        </p>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Email Address</label>
+              <input
+                type="email"
+                name="email"
+                required
+                placeholder="you@example.com"
+                className="w-full bg-[#0B0F19] border border-gray-700 text-white placeholder-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition"
+                onChange={handleChange}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Password</label>
+              <input
+                type="password"
+                name="password"
+                required
+                placeholder="••••••••"
+                className="w-full bg-[#0B0F19] border border-gray-700 text-white placeholder-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition"
+                onChange={handleChange}
+              />
+            </div>
+
+            <button
+              disabled={loading}
+              className="w-full py-4 mt-4 bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-bold rounded-lg shadow-xl shadow-yellow-500/20 hover:scale-[1.02] active:scale-95 transition-all duration-200"
+            >
+              {loading ? "Creating Account..." : "Create Account"}
+            </button>
+          </form>
+
+          <p className="text-center mt-6 text-gray-500 text-sm">
+            Already have an account?{" "}
+            <Link href="/login" className="text-yellow-500 font-bold hover:underline">
+              Sign In
+            </Link>
+          </p>
+        </div>
+        
+        {/* FOOTER LINKS */}
+        <div className="text-center mt-8 text-xs text-gray-600 space-x-4">
+          <Link href="#" className="hover:text-gray-400 transition no-underline">Privacy Policy</Link>
+          <span>•</span>
+          <Link href="#" className="hover:text-gray-400 transition no-underline">Terms of Service</Link>
+        </div>
+
       </div>
-
-      <style jsx>{`
-        .page {
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f6f7fb;
-        }
-
-        .card {
-          background: #fff;
-          width: 100%;
-          max-width: 440px;
-          padding: 2.5rem;
-          border-radius: 14px;
-          box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08);
-        }
-
-        h1 {
-          margin-bottom: 0.25rem;
-        }
-
-        .subtitle {
-          color: #666;
-          margin-bottom: 1.5rem;
-        }
-
-        .role-switch {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem;
-          margin-bottom: 1.5rem;
-        }
-
-        .role-switch button {
-          border: 1px solid #ddd;
-          background: #fff;
-          padding: 1rem;
-          border-radius: 10px;
-          cursor: pointer;
-          text-align: left;
-          font-weight: 600;
-        }
-
-        .role-switch span {
-          display: block;
-          font-size: 0.85rem;
-          font-weight: 400;
-          color: #666;
-        }
-
-        .role-switch .active {
-          border-color: #4f46e5;
-          background: #eef2ff;
-        }
-
-        form input {
-          width: 100%;
-          padding: 0.9rem;
-          margin-bottom: 1rem;
-          border-radius: 8px;
-          border: 1px solid #ddd;
-        }
-
-        form button {
-          width: 100%;
-          padding: 0.9rem;
-          border-radius: 10px;
-          border: none;
-          background: #4f46e5;
-          color: #fff;
-          font-weight: 600;
-          cursor: pointer;
-        }
-
-        .footer {
-          margin-top: 1.5rem;
-          text-align: center;
-          font-size: 0.9rem;
-        }
-
-        .footer a {
-          color: #4f46e5;
-          font-weight: 600;
-        }
-
-        .error {
-          color: red;
-          margin-bottom: 1rem;
-        }
-      `}</style>
     </div>
   );
 }

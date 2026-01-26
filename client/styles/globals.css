@@ -4,182 +4,81 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===============================
-   ROOT / BRAND VARIABLES
-================================ */
 :root {
-  --brand-primary: #4F46E5;
-  --brand-primary-dark: #3730A3;
-  --brand-bg: #F6F7FB;
-  --brand-card: #FFFFFF;
-  --brand-text: #0F172A;
-  --brand-muted: #64748B;
-  --brand-border: #E5E7EB;
+  --bg-main: #0B0F19;       /* Deep Navy/Black */
+  --bg-card: #111827;       /* Lighter Slate for cards */
+  --bg-input: #1F2937;      /* Input fields */
+  --accent: #F59E0B;        /* Gold */
+  --text-main: #F3F4F6;
+  --text-muted: #9CA3AF;
+  --border: #374151;
 }
 
-/* ===============================
-   BASE STYLES
-================================ */
-html, body {
-  background-color: var(--brand-bg);
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
   font-family: 'Plus Jakarta Sans', sans-serif;
-  color: var(--brand-text);
   -webkit-font-smoothing: antialiased;
 }
 
-a {
-  color: var(--brand-primary);
-  font-weight: 500;
+/* --- UTILITIES FOR PROFESSIONAL LOOK --- */
+
+.container-width {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
 }
 
-a:hover {
-  color: var(--brand-primary-dark);
+/* Glass Card Effect */
+.glass-panel {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
 }
 
-/* ===============================
-   FORMS (LOGIN / REGISTER)
-================================ */
-input, select, textarea {
-  background-color: #fff;
-  border: 1px solid var(--brand-border);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.95rem;
-  transition: all 0.2s ease;
-}
-
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--brand-primary);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
-}
-
-/* ===============================
-   BUTTONS
-================================ */
-.btn-primary {
-  background-color: var(--brand-primary);
+/* Professional Input Fields */
+.input-field {
+  width: 100%;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border);
   color: white;
-  font-weight: 600;
+  padding: 0.85rem 1rem;
   border-radius: 0.75rem;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  color: black;
+  font-weight: 700;
   padding: 0.75rem 1.5rem;
-  transition: all 0.2s ease;
+  border-radius: 0.75rem;
+  transition: transform 0.1s ease, box-shadow 0.2s ease;
 }
 
 .btn-primary:hover {
-  background-color: var(--brand-primary-dark);
   transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
 }
 
 .btn-secondary {
-  background-color: #EEF2FF;
-  color: var(--brand-primary);
+  background: transparent;
+  border: 1px solid var(--border);
+  color: white;
   font-weight: 600;
-  border-radius: 0.75rem;
   padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
 }
 
 .btn-secondary:hover {
-  background-color: #E0E7FF;
-}
-
-/* ===============================
-   MARKETPLACE CARDS
-================================ */
-.card {
-  background: var(--brand-card);
-  border-radius: 1rem;
-  border: 1px solid var(--brand-border);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.04);
-  transition: all 0.2s ease;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 35px rgba(0, 0, 0, 0.08);
-}
-
-/* ===============================
-   ROLE BADGES (BUYER / SELLER)
-================================ */
-.badge-buyer {
-  background: #ECFEFF;
-  color: #0369A1;
-  padding: 0.25rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-.badge-seller {
-  background: #EEF2FF;
-  color: var(--brand-primary);
-  padding: 0.25rem 0.75rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-}
-
-/* ===============================
-   CUSTOM SCROLLBAR
-================================ */
-::-webkit-scrollbar {
-  width: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f5f9;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
-}
-
-/* ===============================
-   GLASS EFFECT
-================================ */
-.glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.glass-dark {
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-/* ===============================
-   ANIMATIONS
-================================ */
-@keyframes blob {
-  0% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(30px, -50px) scale(1.1); }
-  66% { transform: translate(-20px, 20px) scale(0.9); }
-  100% { transform: translate(0px, 0px) scale(1); }
-}
-
-.animate-blob {
-  animation: blob 7s infinite;
-}
-
-.animation-delay-2000 {
-  animation-delay: 2s;
-}
-
-@keyframes bounce-in {
-  0% { transform: scale(0.95); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.animate-bounce-in {
-  animation: bounce-in 0.4s ease-out;
+  background: rgba(255,255,255,0.05);
+  border-color: white;
 }
