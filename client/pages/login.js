@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ethers } from 'ethers';
+import { ethers } from 'ethers'; // The library for Blockchain interaction
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import API_URL from '../lib/api';
@@ -19,22 +19,92 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [walletLoading, setWalletLoading] = useState(false);
 
+  // --- REAL-TIME WALLET LISTENER ---
+  useEffect(() => {
+    if (window.ethereum) {
+      // If user switches accounts in MetaMask while on this page
+      window.ethereum.on('accountsChanged', (accounts) => {
+        if (accounts.length > 0) {
+          console.log("User switched account to:", accounts[0]);
+          // Optional: Auto-trigger login flow here if desired
+        } else {
+          console.log("User disconnected");
+        }
+      });
+    }
+  }, []);
+
   // --- HANDLERS ---
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
   };
 
-  // 1. GOOGLE SUCCESS HANDLER (Using jwt-decode)
+  // 1. REAL WALLET LOGIN (Ethers V6 + Signature)
+  const handleWalletLogin = async () => {
+    // A. Check if MetaMask is installed
+    if (!window.ethereum) {
+      alert("MetaMask is not installed! Please install it to continue.");
+      return;
+    }
+
+    setWalletLoading(true);
+    setError('');
+
+    try {
+      // B. Connect to Provider
+      // This pops up the MetaMask window asking to connect
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      
+      // C. Get the User's Account (Signer)
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+
+      console.log("Connected Address:", address);
+
+      // D. THE SECURITY STEP (Signature)
+      // We ask them to sign a message. This proves they own the private key.
+      const message = `Login to HashMarket\nTimestamp: ${Date.now()}`;
+      const signature = await signer.signMessage(message);
+
+      console.log("Signature:", signature);
+
+      // E. Verify on Backend & Get Session Token
+      const res = await fetch(`${API_URL}/api/auth/metamask`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address, signature, message }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.msg || "Wallet login failed");
+
+      // F. Success! Save User & Redirect
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      alert(`Login Success! Wallet: ${address.slice(0,6)}...`);
+      router.push('/dashboard');
+
+    } catch (err) {
+      console.error("Connection Error:", err);
+      // Nice error handling
+      if (err.code === 4001) { // 4001 is MetaMask "User Rejected Request" code
+         setError("You rejected the connection request.");
+      } else {
+         setError("Wallet login failed. Please try again.");
+      }
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
+  // 2. GOOGLE LOGIN HANDLER
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
       const token = credentialResponse.credential;
       const decoded = jwtDecode(token);
       
-      // decoded contains: { email, name, picture, sub (googleId) ... }
-      console.log("Google User:", decoded);
-
-      // Send to Backend to Login/Register
       const res = await fetch(`${API_URL}/api/auth/google-manual`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,7 +119,6 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.msg || "Google Login Failed");
 
-      // Success
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       router.push('/dashboard');
@@ -60,43 +129,9 @@ export default function Login() {
     }
   };
 
-  const handleGoogleError = () => {
-    setError("Google Login Failed");
-  };
+  const handleGoogleError = () => setError("Google Login Failed");
 
-  // 2. METAMASK LOGIN
-  const handleWalletLogin = async () => {
-    if (!window.ethereum) return alert("Please install MetaMask!");
-    setWalletLoading(true);
-    setError('');
-    try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const address = await signer.getAddress();
-      const message = `Login to HashMarket\nTimestamp: ${Date.now()}`;
-      const signature = await signer.signMessage(message);
-
-      const res = await fetch(`${API_URL}/api/auth/metamask`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ address, signature, message }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.msg || "Wallet login failed");
-
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      router.push('/dashboard');
-    } catch (err) {
-      console.error(err);
-      setError("Wallet login failed");
-    } finally {
-      setWalletLoading(false);
-    }
-  };
-
-  // 3. EMAIL LOGIN
+  // 3. EMAIL/PASSWORD LOGIN
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -170,8 +205,17 @@ export default function Login() {
           </div>
 
           <div className="grid grid-cols-1 gap-3">
-            <button onClick={handleWalletLogin} disabled={walletLoading} className="flex items-center justify-center gap-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold transition group disabled:opacity-50">
-               {walletLoading ? "Connecting..." : <><span className="text-xl">🦊</span> Login with MetaMask</>}
+            {/* REAL WALLET BUTTON */}
+            <button 
+              onClick={handleWalletLogin} 
+              disabled={walletLoading} 
+              className="flex items-center justify-center gap-3 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-bold transition group disabled:opacity-50"
+            >
+               {walletLoading ? (
+                 <span className="animate-pulse">Connecting...</span>
+               ) : (
+                 <><span className="text-xl">🦊</span> Login with MetaMask</>
+               )}
             </button>
             
             {/* GOOGLE BUTTON */}
