@@ -4,6 +4,7 @@ import Footer from "../components/Footer";
 import API_URL from "../lib/api";
 import Link from "next/link";
 import CryptoPrice from "../components/CryptoPrice";
+import { CheckCircle } from "lucide-react"; // Import the icon
 
 export default function Market() {
   const [listings, setListings] = useState([]);
@@ -16,7 +17,10 @@ export default function Market() {
         setListings(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("Failed to fetch listings:", err);
+        setLoading(false);
+      });
   }, []);
 
   return (
@@ -64,43 +68,51 @@ export default function Market() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {listings.map((item) => (
-              <Link href={`/product/${item._id}`} key={item._id}>
-                <div className="bg-[#111827] rounded-xl overflow-hidden border border-gray-800 hover:border-yellow-500/50 hover:shadow-2xl hover:shadow-yellow-500/10 transition duration-300 group h-full flex flex-col cursor-pointer">
+              <div key={item._id} className="bg-[#111827] rounded-xl overflow-hidden border border-gray-800 hover:border-yellow-500/50 hover:shadow-2xl hover:shadow-yellow-500/10 transition duration-300 group h-full flex flex-col">
+                
+                {/* 1. IMAGE AREA (Link to Product) */}
+                <Link href={`/product/${item._id}`} className="block h-52 bg-gray-900 relative overflow-hidden flex items-center justify-center cursor-pointer">
+                  {item.imageUrl ? (
+                    <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
+                  ) : (
+                    <span className="text-6xl opacity-20 grayscale group-hover:grayscale-0 transition">
+                      {item.category === 'digital' ? '💻' : '📦'}
+                    </span>
+                  )}
+                  <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold uppercase px-2 py-1 rounded border border-white/10">
+                    {item.category}
+                  </div>
+                </Link>
+
+                {/* 2. CONTENT */}
+                <div className="p-5 flex flex-col flex-grow">
                   
-                  {/* IMAGE AREA */}
-                  <div className="h-52 bg-gray-900 relative overflow-hidden flex items-center justify-center">
-                    {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover group-hover:scale-110 transition duration-700" />
-                    ) : (
-                      <span className="text-6xl opacity-20 grayscale group-hover:grayscale-0 transition">
-                        {item.category === 'digital' ? '💻' : '📦'}
-                      </span>
-                    )}
-                    <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold uppercase px-2 py-1 rounded border border-white/10">
-                      {item.category}
-                    </div>
+                  {/* SELLER LINK (Added Here) */}
+                  <div className="mb-2">
+                    <Link href={`/profile/${item.seller_id || 'shaybl123'}`} className="inline-flex items-center gap-1 text-xs font-mono text-yellow-500 hover:text-white transition">
+                       @{item.sellerName || 'Unknown'} <CheckCircle size={12} className="text-blue-500" />
+                    </Link>
                   </div>
 
-                  {/* CONTENT */}
-                  <div className="p-5 flex flex-col flex-grow">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="text-lg font-bold text-white line-clamp-1 group-hover:text-yellow-500 transition">{item.title}</h3>
+                  {/* TITLE (Link to Product) */}
+                  <Link href={`/product/${item._id}`} className="block mb-2">
+                    <h3 className="text-lg font-bold text-white line-clamp-1 group-hover:text-yellow-500 transition cursor-pointer">{item.title}</h3>
+                  </Link>
+                  
+                  <p className="text-gray-400 text-sm line-clamp-2 mb-4 flex-grow">{item.description}</p>
+                  
+                  {/* PRICE & CONVERTER SECTION */}
+                  <div className="flex items-end justify-between pt-4 border-t border-gray-800 mt-auto">
+                    <div>
+                      <span className="text-xs text-gray-500 block mb-1">Price (USD)</span>
+                      <span className="text-xl font-extrabold text-yellow-500">${item.price}</span>
                     </div>
-                    <p className="text-gray-400 text-sm line-clamp-2 mb-4 flex-grow">{item.description}</p>
                     
-                    {/* PRICE & CONVERTER SECTION */}
-                    <div className="flex items-end justify-between pt-4 border-t border-gray-800 mt-auto">
-                      <div>
-                        <span className="text-xs text-gray-500 block mb-1">Price (USD)</span>
-                        <span className="text-xl font-extrabold text-yellow-500">${item.price}</span>
-                      </div>
-                      
-                      {/* Live Converter Badge */}
-                      <CryptoPrice usdPrice={item.price} />
-                    </div>
+                    {/* Live Converter Badge */}
+                    <CryptoPrice usdPrice={item.price} />
                   </div>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}

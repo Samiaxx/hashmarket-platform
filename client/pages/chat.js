@@ -1,307 +1,227 @@
-import { useEffect, useState, useRef } from 'react';
-import axios from 'axios';
+import { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar';
 import Footer from '../components/Footer';
-import { useRouter } from 'next/router';
 
 export default function Chat() {
-  const router = useRouter();
-  const { with: partnerId } = router.query; 
-  
-  const [inbox, setInbox] = useState([]);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [partnerName, setPartnerName] = useState('Chat');
-  const [currentUser, setCurrentUser] = useState(null);
-  
-  // Offer Logic States
+  const [activeChat, setActiveChat] = useState(1);
+  const [messageInput, setMessageInput] = useState("");
   const [showOfferModal, setShowOfferModal] = useState(false);
-  const [sellerItems, setSellerItems] = useState([]);
-  const [offerDetails, setOfferDetails] = useState({ listingId: '', price: '' });
   
-  // Checkout Logic
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [checkoutItem, setCheckoutItem] = useState(null);
-  
-  const scrollRef = useRef(null);
+  // --- MOCK DATA (Simulating DB) ---
+  const conversations = [
+    { id: 1, user: "CryptoKing_99", avatar: "👨‍💻", online: true, lastMsg: "I specialize in Solidity.", time: "2m", unread: 0, level: "Level 2 Seller" },
+    { id: 2, user: "NFT_Designer_X", avatar: "🎨", online: false, lastMsg: "The artwork is ready for review.", time: "1h", unread: 2, level: "Top Rated" },
+    { id: 3, user: "DevOps_Master", avatar: "🛠️", online: true, lastMsg: "Server deployment complete.", time: "1d", unread: 0, level: "New Seller" },
+  ];
 
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    setCurrentUser(user);
-    if (user) fetchInbox();
-  }, []);
+  const [messages, setMessages] = useState([
+    { id: 1, sender: "buyer", text: "Hi, can you build a staking DApp for my token?", type: "text", time: "10:40 AM" },
+    { id: 2, sender: "seller", text: "Yes, I specialize in Solidity and React. Do you have the whitepaper?", type: "text", time: "10:42 AM" },
+    { id: 3, sender: "system", text: "🔒 Order #9021 Created: Waiting for Deposit", type: "event", time: "10:45 AM" },
+    { id: 4, sender: "buyer", text: "Sending the deposit now.", type: "text", time: "10:46 AM" },
+  ]);
 
-  useEffect(() => {
-    if (partnerId) {
-      fetchMessages();
-      const interval = setInterval(fetchMessages, 3000); 
-      return () => clearInterval(interval);
-    }
-  }, [partnerId]);
-
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const fetchInbox = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const res = await axios.get('https://hashmarket-platform.vercel.app/api/inbox', { headers: { 'x-auth-token': token } });
-      setInbox(res.data);
-    } catch (err) { console.error(err); }
-  };
-
-  const fetchMessages = async () => {
-    const token = localStorage.getItem('token');
-    try {
-      const res = await axios.get(`https://hashmarket-platform.vercel.app/api/messages/${partnerId}`, { headers: { 'x-auth-token': token } });
-      setMessages(res.data);
-      const contact = inbox.find(c => c.userId === partnerId);
-      if (contact) setPartnerName(contact.username);
-    } catch (err) { console.error(err); }
-  };
-
-  const sendMessage = async (e) => {
+  // --- HANDLERS ---
+  const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
-    const token = localStorage.getItem('token');
-    try {
-      await axios.post('https://hashmarket-platform.vercel.app/api/messages', { toId: partnerId, text: newMessage, type: 'text' }, { headers: { 'x-auth-token': token } });
-      setNewMessage('');
-      fetchMessages();
-    } catch (err) { alert("Failed to send"); }
-  };
-
-  // --- OFFER FUNCTIONS ---
-
-  const openOfferModal = async () => {
-    const token = localStorage.getItem('token');
-    // Fetch items belonging to the partner (assuming partner is seller)
-    try {
-        const res = await axios.get(`https://hashmarket-platform.vercel.app/api/listings/seller/${partnerId}`, { headers: { 'x-auth-token': token } });
-        setSellerItems(res.data);
-        setShowOfferModal(true);
-    } catch (err) { alert("Could not fetch seller items."); }
-  };
-
-  const sendOffer = async () => {
-    const token = localStorage.getItem('token');
-    const selectedProduct = sellerItems.find(i => i._id === offerDetails.listingId);
+    if (!messageInput.trim()) return;
     
-    if(!selectedProduct || !offerDetails.price) return alert("Select item and price");
-
-    try {
-      await axios.post('https://hashmarket-platform.vercel.app/api/messages', { 
-          toId: partnerId, 
-          text: `Sent an offer for ${selectedProduct.title}`, 
-          type: 'offer',
-          offerData: {
-              listingId: selectedProduct._id,
-              listingTitle: selectedProduct.title,
-              price: offerDetails.price,
-              status: 'pending'
-          }
-      }, { headers: { 'x-auth-token': token } });
-      
-      setShowOfferModal(false);
-      fetchMessages();
-    } catch (err) { alert("Failed to send offer"); }
+    // Add message to UI (Optimistic update)
+    const newMsg = { id: Date.now(), sender: "seller", text: messageInput, type: "text", time: "Now" };
+    setMessages([...messages, newMsg]);
+    setMessageInput("");
   };
 
-  const acceptOffer = async (msgId) => {
-    const token = localStorage.getItem('token');
-    try {
-        await axios.put(`https://hashmarket-platform.vercel.app/api/messages/offer/${msgId}`, 
-            { status: 'accepted' }, 
-            { headers: { 'x-auth-token': token } }
-        );
-        alert("Offer Accepted! The buyer has been notified.");
-        fetchMessages();
-    } catch(err) { alert("Error accepting"); }
+  const handleCreateOffer = () => {
+    setShowOfferModal(false);
+    // Simulate creating a contract card in chat
+    const offerMsg = { 
+      id: Date.now(), 
+      sender: "seller", 
+      text: "I have created a custom offer for the Staking DApp Project.", 
+      type: "offer", 
+      price: "0.5 ETH", 
+      days: "7 Days" 
+    };
+    setMessages([...messages, offerMsg]);
   };
 
-  // --- CHECKOUT FUNCTIONS ---
-  const handlePayNow = (offer) => {
-      setCheckoutItem({
-          _id: offer.listingId,
-          title: offer.listingTitle,
-          price: offer.price, // Use negotiated price
-          isCustom: true
-      });
-      setShowCheckout(true);
-  };
-
-  const processPayment = async () => {
-      // Simulate Payment
-      setTimeout(async () => {
-        const token = localStorage.getItem('token');
-        try {
-            await axios.post('https://hashmarket-platform.vercel.app/api/orders', 
-                { listingId: checkoutItem._id, customPrice: checkoutItem.price }, 
-                { headers: { 'x-auth-token': token } }
-            );
-            alert("Payment Successful! Order Placed.");
-            setShowCheckout(false);
-            router.push('/dashboard');
-        } catch(err) { alert("Payment Failed"); }
-      }, 2000);
-  };
+  const activeUser = conversations.find(c => c.id === activeChat);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-950 text-white font-sans flex flex-col">
       <Navbar />
-      <div className="container mx-auto p-4 md:p-6 flex-grow flex gap-6 h-[85vh]">
-        
-        {/* SIDEBAR */}
-        <div className={`w-full md:w-1/3 bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col ${partnerId ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-5 border-b border-slate-100 font-bold text-slate-700">Inbox</div>
-          <div className="overflow-y-auto flex-1 p-2">
-            {inbox.map(chat => (
-              <div key={chat.userId} onClick={() => router.push(`/chat?with=${chat.userId}`)} className={`p-4 rounded-xl cursor-pointer hover:bg-slate-50 transition mb-1 ${partnerId === chat.userId ? 'bg-emerald-50 text-emerald-700' : ''}`}>
-                <div className="font-bold">{chat.username}</div>
-                <div className="text-xs text-slate-400">View conversation</div>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        {/* CHAT AREA */}
-        <div className={`flex-1 bg-white rounded-3xl shadow-lg border border-slate-100 flex flex-col overflow-hidden ${!partnerId ? 'hidden md:flex' : 'flex'}`}>
-          {partnerId ? (
-            <>
-              {/* Header */}
-              <div className="p-4 bg-white border-b border-slate-100 flex justify-between items-center shadow-sm z-10">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => router.push('/chat')} className="md:hidden text-slate-400">←</button>
-                    <h2 className="font-bold text-lg text-slate-800">{partnerName}</h2>
+      <div className="flex-1 container mx-auto px-4 py-8 max-w-7xl h-[calc(100vh-80px)]">
+        <div className="flex h-full bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+          
+          {/* --- LEFT SIDEBAR (User List) --- */}
+          <div className="w-1/3 border-r border-slate-800 flex flex-col hidden md:flex">
+            
+            {/* Search Header */}
+            <div className="p-4 border-b border-slate-800 bg-slate-900/50">
+              <div className="relative">
+                <span className="absolute left-3 top-2.5 text-slate-500">🔍</span>
+                <input 
+                  type="text" 
+                  placeholder="Search inbox..." 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 pl-10 pr-4 text-sm focus:border-blue-500 outline-none transition"
+                />
+              </div>
+            </div>
+            
+            {/* Conversation List */}
+            <div className="flex-1 overflow-y-auto">
+              {conversations.map((chat) => (
+                <div 
+                  key={chat.id}
+                  onClick={() => setActiveChat(chat.id)}
+                  className={`p-4 cursor-pointer transition border-l-4 ${activeChat === chat.id ? 'bg-slate-800 border-blue-500' : 'border-transparent hover:bg-slate-800/50'}`}
+                >
+                  <div className="flex justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                       <span className="text-xl bg-slate-700 w-8 h-8 flex items-center justify-center rounded-full">{chat.avatar}</span>
+                       <span className={`font-bold text-sm ${activeChat === chat.id ? 'text-white' : 'text-slate-300'}`}>{chat.user}</span>
+                       {chat.online && <span className="w-2 h-2 bg-emerald-500 rounded-full border border-slate-900"></span>}
+                    </div>
+                    <span className="text-xs text-slate-500">{chat.time}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-slate-400 truncate w-4/5">{chat.lastMsg}</p>
+                    {chat.unread > 0 && <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{chat.unread}</span>}
+                  </div>
                 </div>
-                {/* MAKE OFFER BUTTON */}
-                <button onClick={openOfferModal} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-slate-700 transition flex items-center gap-1">
-                    <span>⚡</span> Make Offer
-                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* --- RIGHT CHAT AREA --- */}
+          <div className="w-full md:w-2/3 flex flex-col bg-slate-950 relative">
+            
+            {/* 1. CHAT HEADER */}
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-slate-800 rounded-full flex items-center justify-center text-xl border border-slate-700">
+                  {activeUser.avatar}
+                </div>
+                <div>
+                  <h3 className="font-bold text-white flex items-center gap-2">
+                    {activeUser.user} 
+                    {activeUser.level === "Top Rated" && <span className="bg-yellow-500/10 text-yellow-500 text-[9px] px-1.5 py-0.5 rounded border border-yellow-500/20 uppercase">Top Rated</span>}
+                  </h3>
+                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                    {activeUser.online ? <span className="text-emerald-400">● Online</span> : 'Last seen 1h ago'} | Local Time 10:42 PM
+                  </span>
+                </div>
               </div>
+              
+              {/* 2. CREATE OFFER BUTTON */}
+              <button 
+                onClick={() => setShowOfferModal(true)}
+                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-lg shadow-blue-900/20 transition"
+              >
+                 <span>⚡</span> Create Custom Offer
+              </button>
+            </div>
 
-              {/* Messages */}
-              <div className="flex-1 p-6 overflow-y-auto bg-slate-50 space-y-4">
-                {messages.map(msg => {
-                  const isMe = msg.fromId === currentUser?.id;
-                  const isSystem = msg.type === 'system';
+            {/* 3. SAFETY BANNER */}
+            <div className="bg-yellow-900/20 text-yellow-500 text-[11px] p-2 text-center border-b border-yellow-500/10 font-medium">
+              ⚠️ For your safety, never share private keys or communicate outside of HashMarket. Payments outside escrow are not protected.
+            </div>
 
-                  if (isSystem) {
-                      return (
-                          <div key={msg.id} className="flex justify-center my-4">
-                              <span className="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-bold">{msg.text}</span>
-                          </div>
-                      );
-                  }
-
-                  if (msg.type === 'offer') {
-                      return (
-                          <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                              <div className={`max-w-xs w-full p-4 rounded-2xl border-2 ${isMe ? 'bg-white border-slate-200' : 'bg-white border-emerald-500'}`}>
-                                  <div className="text-xs font-bold uppercase text-slate-400 mb-2">Custom Offer</div>
-                                  <h3 className="font-bold text-slate-800 text-lg">{msg.offerData.listingTitle}</h3>
-                                  <div className="text-3xl font-black text-emerald-600 my-2">${msg.offerData.price}</div>
-                                  
-                                  {/* STATUS BADGE */}
-                                  <div className={`text-center py-1 rounded text-xs font-bold uppercase mb-3 ${msg.offerData.status === 'accepted' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                                      Status: {msg.offerData.status}
-                                  </div>
-
-                                  {/* SELLER ACTION: ACCEPT */}
-                                  {!isMe && msg.offerData.status === 'pending' && (
-                                      <button onClick={() => acceptOffer(msg.id)} className="w-full bg-emerald-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-emerald-700">
-                                          Accept Offer
-                                      </button>
-                                  )}
-
-                                  {/* BUYER ACTION: PAY NOW (If accepted) */}
-                                  {isMe && msg.offerData.status === 'accepted' && (
-                                      <button onClick={() => handlePayNow(msg.offerData)} className="w-full bg-slate-900 text-white py-2 rounded-lg font-bold text-sm hover:bg-slate-800">
-                                          Pay Now
-                                      </button>
-                                  )}
-                              </div>
-                          </div>
-                      );
-                  }
-
+            {/* 4. MESSAGES STREAM */}
+            <div className="flex-1 p-6 overflow-y-auto space-y-6 bg-slate-950/50">
+              {messages.map((msg) => {
+                if (msg.type === "event") {
                   return (
-                    <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] p-3 px-4 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-slate-900 text-white rounded-br-none' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'}`}>
+                    <div key={msg.id} className="flex justify-center">
+                      <div className="bg-slate-800/50 text-slate-400 text-xs px-4 py-1.5 rounded-full border border-slate-700">
                         {msg.text}
                       </div>
                     </div>
                   );
-                })}
-                <div ref={scrollRef} />
-              </div>
+                }
+                
+                if (msg.type === "offer") {
+                  return (
+                    <div key={msg.id} className="flex justify-end">
+                      <div className="bg-slate-800 border border-blue-500/30 rounded-2xl p-4 w-72 shadow-xl">
+                         <h4 className="font-bold text-white mb-2 text-sm">📑 Custom Offer Created</h4>
+                         <p className="text-slate-400 text-xs mb-4">{msg.text}</p>
+                         <div className="flex justify-between items-center mb-4 text-sm font-mono bg-slate-900 p-2 rounded-lg">
+                            <span className="text-emerald-400 font-bold">{msg.price}</span>
+                            <span className="text-slate-500">⏳ {msg.days} Delivery</span>
+                         </div>
+                         <button className="w-full bg-slate-700 text-slate-400 text-xs font-bold py-2 rounded cursor-not-allowed opacity-70">Waiting for Buyer...</button>
+                      </div>
+                    </div>
+                  )
+                }
 
-              {/* Input */}
-              <form onSubmit={sendMessage} className="p-4 bg-white border-t flex gap-2">
-                <input value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Type a message..." className="flex-1 border p-3 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"/>
-                <button type="submit" className="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition">Send</button>
-              </form>
-            </>
-          ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-300">
-              <span className="text-6xl mb-4">💬</span>
-              <p>Select a conversation</p>
+                const isMe = msg.sender === "seller";
+                return (
+                  <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                     <div className={`max-w-md p-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                       isMe 
+                         ? 'bg-blue-600 text-white rounded-tr-none' 
+                         : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-tl-none'
+                     }`}>
+                       {msg.text}
+                     </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
+
+            {/* 5. INPUT AREA */}
+            <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800 bg-slate-900 flex gap-3 items-center">
+              <button type="button" className="text-slate-400 hover:text-white p-2 rounded-full hover:bg-slate-800 transition">📎</button>
+              <input 
+                value={messageInput}
+                onChange={(e) => setMessageInput(e.target.value)}
+                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none text-white placeholder-slate-500 transition"
+                placeholder="Type your message..."
+              />
+              <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg transition">
+                Send
+              </button>
+            </form>
+
+            {/* --- CUSTOM OFFER MODAL (Absolute Overlay) --- */}
+            {showOfferModal && (
+              <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                 <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl animate-in fade-in zoom-in duration-200">
+                    <h3 className="text-xl font-bold text-white mb-4">Create Custom Offer</h3>
+                    
+                    <div className="space-y-4">
+                       <div>
+                          <label className="text-xs font-bold text-slate-500 uppercase">I will deliver</label>
+                          <input placeholder="e.g. Smart Contract Development" className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-blue-500 outline-none"/>
+                       </div>
+                       <div className="grid grid-cols-2 gap-4">
+                          <div>
+                             <label className="text-xs font-bold text-slate-500 uppercase">Price (ETH)</label>
+                             <input type="number" placeholder="0.5" className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-blue-500 outline-none"/>
+                          </div>
+                          <div>
+                             <label className="text-xs font-bold text-slate-500 uppercase">Delivery (Days)</label>
+                             <input type="number" placeholder="7" className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-lg p-3 text-sm text-white focus:border-blue-500 outline-none"/>
+                          </div>
+                       </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-8">
+                       <button onClick={() => setShowOfferModal(false)} className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-bold text-sm">Cancel</button>
+                       <button onClick={handleCreateOffer} className="flex-1 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 font-bold text-sm shadow-lg shadow-emerald-900/20">Send Offer</button>
+                    </div>
+                 </div>
+              </div>
+            )}
+
+          </div>
         </div>
       </div>
       <Footer />
-
-      {/* CREATE OFFER MODAL */}
-      {showOfferModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white p-6 rounded-2xl w-full max-w-sm">
-                  <h3 className="font-bold text-xl mb-4">Make an Offer</h3>
-                  
-                  {sellerItems.length === 0 ? (
-                      <p className="text-slate-500 text-sm mb-4">This user has no active listings.</p>
-                  ) : (
-                      <div className="space-y-4">
-                          <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Select Item</label>
-                              <select className="w-full border p-2 rounded-lg" onChange={(e) => setOfferDetails({...offerDetails, listingId: e.target.value})}>
-                                  <option value="">-- Choose Product --</option>
-                                  {sellerItems.map(i => <option key={i._id} value={i._id}>{i.title} (Listed: ${i.price})</option>)}
-                              </select>
-                          </div>
-                          <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Your Offer Price ($)</label>
-                              <input type="number" className="w-full border p-2 rounded-lg" placeholder="e.g. 450" onChange={(e) => setOfferDetails({...offerDetails, price: e.target.value})} />
-                          </div>
-                      </div>
-                  )}
-
-                  <div className="flex gap-2 mt-6">
-                      <button onClick={() => setShowOfferModal(false)} className="flex-1 py-2 text-slate-500 font-bold">Cancel</button>
-                      <button onClick={sendOffer} className="flex-1 bg-emerald-600 text-white py-2 rounded-lg font-bold">Send Offer</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* PAY NOW MODAL (Simplified for Negotiation) */}
-      {showCheckout && (
-        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-8 rounded-3xl w-full max-w-sm text-center">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">💳</div>
-                <h2 className="text-2xl font-extrabold text-slate-900">Confirm Payment</h2>
-                <p className="text-slate-500 mt-2">Paying negotiated price for:</p>
-                <p className="font-bold text-lg mt-1">{checkoutItem?.title}</p>
-                <div className="text-4xl font-black text-emerald-600 my-6">${checkoutItem?.price}</div>
-                
-                <button onClick={processPayment} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-emerald-600 transition mb-3">
-                    Confirm & Pay
-                </button>
-                <button onClick={() => setShowCheckout(false)} className="text-slate-400 font-bold text-sm">Cancel</button>
-            </div>
-        </div>
-      )}
     </div>
   );
 }
