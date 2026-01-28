@@ -2,308 +2,361 @@ const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { createClient } = require("@supabase/supabase-js");
-const { ethers } = require("ethers"); // Required for MetaMask verification
-const { OAuth2Client } = require('google-auth-library'); // Required for Google Login
+const { ethers } = require("ethers"); // For Wallet Login verification
+const connectDB = require('./config/db'); // <--- IMPORT NEW DB CONNECTION
 require("dotenv").config();
+
+// --- IMPORT MODELS ---
+const User = require("./models/User");
+const Listing = require("./models/Listing");
+const SellerProfile = require("./models/SellerProfile");
+const Order = require("./models/Order"); 
 
 const app = express();
 
-// --- CORS CONFIGURATION ---
-app.use(cors({ origin: "*" }));
+// --- 1. CONNECT TO DATABASE ---
+connectDB(); // <--- CALL THE CONNECTION FUNCTION HERE
+
+// --- MIDDLEWARE ---
+app.use(cors({ origin: "*" })); // Allow all origins for development
 app.use(express.json());
 
-// --- SUPABASE CONNECTION ---
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-// --- ROOT ROUTE (Health Check) ---
-app.get("/", (_, res) => res.send("HashMarket Crypto-Gateway API is Running on Render!"));
+// --- ROOT ROUTE ---
+app.get("/", (req, res) => res.send("HashMarket API is Running!"));
 
 // --- AUTH MIDDLEWARE ---
 const auth = (req, res, next) => {
   const token = req.header("x-auth-token");
   if (!token) return res.status(401).json({ msg: "No token, authorization denied" });
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded.user;
     next();
-  } catch {
+  } catch (err) {
     res.status(401).json({ msg: "Token is not valid" });
   }
 };
 
+// --- ADMIN MIDDLEWARE ---
+const adminAuth = async (req, res, next) => {
+  auth(req, res, async () => {
+    try {
+      const user = await User.findById(req.user.id);
+      if (user.role !== "admin") {
+        return res.status(403).json({ msg: "Access Denied: Admins Only" });
+      }
+      next();
+    } catch (err) {
+      res.status(500).send("Server Error");
+    }
+  });
+};
+
 // =========================================================================
-// 1. AUTHENTICATION ROUTES (Register, Login, MetaMask, Google)
+// 1. AUTHENTICATION ROUTES
 // =========================================================================
 
-// REGISTER (Email/Password)
+// REGISTER
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password, role } = req.body;
   try {
-    const { data: existing } = await supabase.from("users").select("*").eq("email", email).single();
-    if (existing) return res.status(400).json({ msg: "User already exists" });
+    let user = await User.findOne({ email });
+    if (user) return res.status(400).json({ msg: "User already exists" });
 
-    const hashed = await bcrypt.hash(password, 10);
-    const { data, error } = await supabase.from("users").insert([{ 
-      username, email, password: hashed, role: role || "buyer", created_at: new Date() 
-    }]).select().single();
-    
-    if (error) throw error;
-    
-    const payload = { user: { id: data.id, username: data.username, role: data.role } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (_, token) => res.json({ token, user: payload.user }));
-  } catch (err) { res.status(500).json({ msg: err.message }); }
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    user = new User({
+      username,
+      email,
+      password: hashedPassword,
+      role: role || "buyer",
+    });
+
+    await user.save();
+
+    const payload = { user: { id: user.id, role: user.role } };
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (err, token) => {
+      if (err) throw err;
+      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
 });
 
-// LOGIN (Email/Password)
+// LOGIN
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const { data: user } = await supabase.from("users").select("*").eq("email", email).single();
-    if (!user || !(await bcrypt.compare(password, user.password))) return res.status(400).json({ msg: "Invalid credentials" });
-    
-    const payload = { user: { id: user.id, username: user.username, role: user.role } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (_, token) => res.json({ token, user: payload.user }));
-  } catch { res.status(500).send("Server error"); }
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ msg: "Invalid Credentials" });
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(400).json({ msg: "Invalid Credentials" });
+
+    const payload = { user: { id: user.id, role: user.role } };
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (err, token) => {
+      if (err) throw err;
+      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
 });
 
-// LOGIN (MetaMask / SIWE)
+// WALLET LOGIN (MetaMask)
 app.post("/api/auth/metamask", async (req, res) => {
   const { address, signature, message } = req.body;
   try {
     // Verify Signature
     const signerAddr = ethers.verifyMessage(message, signature);
     if (signerAddr.toLowerCase() !== address.toLowerCase()) {
-      return res.status(401).json({ msg: "Invalid signature verification" });
+      return res.status(401).json({ msg: "Signature verification failed" });
     }
 
     // Find or Create User
-    let { data: user } = await supabase.from("users").select("*").eq("wallet_address", address).single();
-    
+    let user = await User.findOne({ wallet_address: address });
     if (!user) {
-      const { data: newUser, error } = await supabase.from("users").insert([{
+      user = new User({
+        username: `User_${address.substring(0, 6)}`,
         wallet_address: address,
-        username: `User_${address.substring(0,6)}`,
         role: "buyer",
-        created_at: new Date()
-      }]).select().single();
-      if (error) throw error;
-      user = newUser;
+        email: `${address}@wallet.placeholder`, // Placeholder email
+        password: await bcrypt.hash(Math.random().toString(), 10) // Random password
+      });
+      await user.save();
     }
 
-    const payload = { user: { id: user.id, username: user.username, role: user.role } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (_, token) => res.json({ token, user: payload.user }));
-  } catch (err) { res.status(500).json({ msg: "Wallet login failed" }); }
+    const payload = { user: { id: user.id, role: user.role } };
+    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (err, token) => {
+      if (err) throw err;
+      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: "Wallet Login Error" });
+  }
 });
 
-// LOGIN (Google)
-app.post("/api/auth/google", async (req, res) => {
-  const { tokenId } = req.body;
-  try {
-    const ticket = await googleClient.verifyIdToken({ idToken: tokenId, audience: process.env.GOOGLE_CLIENT_ID });
-    const { email, name, picture } = ticket.getPayload();
+// =========================================================================
+// 2. SELLER & PROFILE ROUTES
+// =========================================================================
 
-    let { data: user } = await supabase.from("users").select("*").eq("email", email).single();
-
-    if (!user) {
-      const { data: newUser, error } = await supabase.from("users").insert([{
-        email, username: name, profile_image: picture, role: "buyer", created_at: new Date()
-      }]).select().single();
-      if (error) throw error;
-      user = newUser;
-    }
-
-    const payload = { user: { id: user.id, username: user.username, role: user.role } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (_, token) => res.json({ token, user: payload.user }));
-  } catch (err) { res.status(401).json({ msg: "Google login failed" }); }
-});
-
-// LOGIN (Google Manual - for useGoogleLogin hook)
-app.post("/api/auth/google-manual", async (req, res) => {
-  const { email, name, picture } = req.body;
+// ONBOARD SELLER
+app.post("/api/seller/onboard", auth, async (req, res) => {
+  const { displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet } = req.body;
   
   try {
-    let { data: user } = await supabase.from("users").select("*").eq("email", email).single();
+    // 1. Create/Update Profile
+    const profileFields = {
+      user: req.user.id,
+      displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet
+    };
 
-    if (!user) {
-      const { data: newUser, error } = await supabase.from("users").insert([{
-        email, 
-        username: name, 
-        profile_image: picture, 
-        role: "buyer", 
-        created_at: new Date()
-      }]).select().single();
-      
-      if (error) throw error;
-      user = newUser;
+    let profile = await SellerProfile.findOne({ user: req.user.id });
+    if (profile) {
+      profile = await SellerProfile.findOneAndUpdate(
+        { user: req.user.id },
+        { $set: profileFields },
+        { new: true }
+      );
+    } else {
+      profile = new SellerProfile(profileFields);
+      await profile.save();
     }
 
-    const payload = { user: { id: user.id, username: user.username, role: user.role } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (_, token) => res.json({ token, user: payload.user }));
-    
+    // 2. Update User Role
+    await User.findByIdAndUpdate(req.user.id, { role: "seller" });
+
+    res.json(profile);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: "Server Error during Google Login" });
+    console.error(err.message);
+    res.status(500).send("Server Error");
   }
 });
 
-
-// =========================================================================
-// 2. SELLER ONBOARDING ROUTE (The Wizard)
-// =========================================================================
-app.post("/api/seller/onboard", auth, async (req, res) => {
-  const { 
-    displayName, tagline, bio, profileImage, 
-    mainCategory, skills, experienceLevel, languages,
-    portfolio, socialLinks, payoutWallet 
-  } = req.body;
-
+// GET PUBLIC PROFILE (User + Seller Data)
+app.get("/api/users/:id", async (req, res) => {
   try {
-    // 1. Create/Update Seller Profile
-    const { data, error } = await supabase.from("seller_profiles").upsert([{
-      user_id: req.user.id,
-      display_name: displayName,
-      tagline,
-      bio,
-      profile_image: profileImage,
-      main_category: mainCategory,
-      skills, // Assumes Supabase column is TEXT[]
-      experience_level: experienceLevel,
-      languages, // JSONB
-      portfolio, // JSONB
-      social_links: socialLinks, // JSONB
-      payout_wallet: payoutWallet,
-      badges: ['New Seller'],
-      created_at: new Date()
-    }]).select().single();
+    const user = await User.findById(req.params.id).select("-password");
+    if (!user) return res.status(404).json({ msg: "User not found" });
 
-    if (error) throw error;
-
-    // 2. Upgrade User Role
-    await supabase.from("users").update({ role: 'seller' }).eq("id", req.user.id);
-
-    res.json(data);
+    const profile = await SellerProfile.findOne({ user: user.id });
+    
+    // Merge data
+    const fullProfile = {
+      ...user._doc,
+      ...(profile ? profile._doc : {})
+    };
+    
+    res.json(fullProfile);
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Server Error: " + err.message);
+    console.error(err.message);
+    res.status(500).send("Server Error");
   }
 });
 
+// =========================================================================
+// 3. MARKETPLACE ROUTES
+// =========================================================================
 
-// =========================================================================
-// 3. MARKETPLACE LISTINGS
-// =========================================================================
+// GET LISTINGS (Public - Only Approved)
 app.get("/api/listings", async (req, res) => {
   const { seller, cat } = req.query;
   try {
-    let query = supabase.from("listings").select("*, users(username, created_at)").eq("status", "APPROVED");
-    
+    let filter = { status: "APPROVED" };
+
     if (seller) {
-      const { data: user } = await supabase.from("users").select("id").eq("username", seller).single();
-      if (user) query = query.eq("seller_id", user.id);
+      const sellerUser = await User.findOne({ username: seller });
+      if (sellerUser) filter.seller = sellerUser.id;
     }
     
     if (cat) {
-      query = query.ilike('category', `%${cat.replace('-', ' ')}%`);
+      filter.category = { $regex: cat.replace('-', ' '), $options: "i" };
     }
 
-    const { data } = await query;
+    const listings = await Listing.find(filter).populate("seller", "username created_at");
     
-    const formatted = data ? data.map(item => ({
-      ...item,
-      _id: item.id,
-      sellerName: item.users?.username || 'Unknown',
-      isNewSeller: (new Date() - new Date(item.users?.created_at)) / (1000 * 60 * 60 * 24) < 30
-    })) : [];
-    
+    // Format for frontend
+    const formatted = listings.map(item => ({
+      ...item._doc,
+      sellerName: item.seller?.username || "Unknown",
+      seller_id: item.seller?._id,
+      isNewSeller: item.seller?.created_at && (new Date() - new Date(item.seller.created_at)) / (1000 * 60 * 60 * 24) < 30
+    }));
+
     res.json(formatted);
-  } catch { res.status(500).send("Server error"); }
-});
-
-app.post("/api/listings", auth, async (req, res) => {
-  const { title, description, price, category, imageUrl } = req.body;
-  try {
-    const { data, error } = await supabase.from("listings").insert([{
-      seller_id: req.user.id, title, description, price, category, image_url: imageUrl, status: "APPROVED"
-    }]).select().single();
-    if (error) throw error;
-    res.json(data);
-  } catch { res.status(500).send("Server error"); }
-});
-
-
-// =========================================================================
-// 4. DASHBOARD & ORDERS
-// =========================================================================
-
-app.post("/api/orders", auth, async (req, res) => {
-  const { listingId, amount, txHash } = req.body;
-  try {
-    const { data: listing } = await supabase.from("listings").select("*").eq("id", listingId).single();
-    if (!listing) return res.status(404).json({ msg: "Item not found" });
-
-    const { data: order, error } = await supabase.from("orders").insert([{
-      buyer_id: req.user.id,
-      seller_id: listing.seller_id,
-      listing_id: listingId,
-      amount: amount,
-      status: "PAID",
-      tx_hash: txHash,
-      item_title: listing.title,
-      created_at: new Date()
-    }]).select().single();
-
-    if (error) throw error;
-    res.json(order);
-  } catch { res.status(500).send("Server Error"); }
-});
-
-app.get("/api/dashboard", auth, async (req, res) => {
-  try {
-    const { data: purchases } = await supabase.from("orders")
-      .select("*")
-      .eq("buyer_id", req.user.id)
-      .order('created_at', { ascending: false });
-
-    const { data: sales } = await supabase.from("orders")
-      .select("*")
-      .eq("seller_id", req.user.id)
-      .order('created_at', { ascending: false });
-
-    const formatOrder = (o) => ({
-      id: o.id,
-      itemTitle: o.item_title || "Item",
-      amount: o.amount,
-      status: o.status,
-      buyerId: o.buyer_id,
-      sellerId: o.seller_id
-    });
-
-    res.json({
-      purchases: purchases ? purchases.map(formatOrder) : [],
-      sales: sales ? sales.map(formatOrder) : []
-    });
   } catch (err) {
-    console.error(err);
-    res.status(500).send("Dashboard Error");
+    console.error(err.message);
+    res.status(500).send("Server Error");
   }
 });
 
-app.put("/api/orders/:id/status", auth, async (req, res) => {
-  const { status } = req.body;
+// CREATE LISTING (Protected)
+app.post("/api/listings", auth, async (req, res) => {
   try {
-    const { data, error } = await supabase.from("orders").update({ status }).eq("id", req.params.id).select().single();
-    if (error) throw error;
-    res.json(data);
-  } catch { res.status(500).send("Update Failed"); }
+    const newListing = new Listing({
+      seller: req.user.id,
+      title: req.body.title,
+      description: req.body.description,
+      price: req.body.price,
+      category: req.body.category,
+      image_url: req.body.imageUrl, 
+      status: "PENDING" // Auto-set to PENDING
+    });
+
+    const listing = await newListing.save();
+    res.json(listing);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
 });
 
+// =========================================================================
+// 4. ADMIN ROUTES
+// =========================================================================
+
+// GET PENDING LISTINGS
+app.get("/api/admin/listings", adminAuth, async (req, res) => {
+  try {
+    const listings = await Listing.find({ status: "PENDING" }).populate("seller", "username");
+    res.json(listings);
+  } catch (err) {
+    res.status(500).send("Server Error");
+  }
+});
+
+// MODERATE LISTING
+app.put("/api/admin/moderate/:id", adminAuth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const listing = await Listing.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    );
+    res.json(listing);
+  } catch (err) {
+    res.status(500).send("Server Error");
+  }
+});
 
 // =========================================================================
-// 5. SERVER START
+// 5. ORDER & DASHBOARD ROUTES
 // =========================================================================
+
+// CREATE ORDER
+app.post("/api/orders", auth, async (req, res) => {
+  try {
+    const { listingId, amount, txHash } = req.body;
+    const listing = await Listing.findById(listingId);
+    
+    if (!listing) return res.status(404).json({ msg: "Listing not found" });
+
+    const newOrder = new Order({
+      buyer: req.user.id,
+      seller: listing.seller,
+      listing: listingId,
+      amount,
+      txHash,
+      itemTitle: listing.title,
+      status: "PAID"
+    });
+
+    const order = await newOrder.save();
+    res.json(order);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+// GET USER DASHBOARD
+app.get("/api/dashboard", auth, async (req, res) => {
+  try {
+    const purchases = await Order.find({ buyer: req.user.id }).sort({ createdAt: -1 });
+    const sales = await Order.find({ seller: req.user.id }).sort({ createdAt: -1 });
+    
+    // Map to frontend expected format
+    const formatOrder = (o) => ({
+      id: o._id,
+      itemTitle: o.itemTitle,
+      amount: o.amount,
+      status: o.status,
+      buyerId: o.buyer,
+      sellerId: o.seller
+    });
+
+    res.json({
+      purchases: purchases.map(formatOrder),
+      sales: sales.map(formatOrder)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Server Error");
+  }
+});
+
+// UPDATE ORDER STATUS
+app.put("/api/orders/:id/status", auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const order = await Order.findByIdAndUpdate(
+      req.params.id, 
+      { status },
+      { new: true }
+    );
+    res.json(order);
+  } catch (err) {
+    res.status(500).send("Server Error");
+  }
+});
+
+// --- SERVER LISTEN ---
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 HashMarket Server running on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 HashMarket Server running on port ${PORT}`));

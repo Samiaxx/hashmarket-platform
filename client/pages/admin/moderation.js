@@ -1,8 +1,9 @@
-// client/pages/admin/moderation.js
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/router';
 import Navbar from '../../components/Navbar';
+// IMPORT YOUR DYNAMIC API URL
+import API_URL from '../../lib/api'; 
 
 export default function Moderation() {
   const [pendingListings, setPendingListings] = useState([]);
@@ -13,14 +14,15 @@ export default function Moderation() {
   useEffect(() => {
     const fetchPending = async () => {
       const token = localStorage.getItem('token');
-      // Simple check to see if user is logged in
+      
       if (!token) {
         router.push('/login');
         return;
       }
 
       try {
-        const res = await axios.get('https://hashmarket-platform.vercel.app/api/admin/listings', {
+        // USE DYNAMIC API URL HERE
+        const res = await axios.get(`${API_URL}/api/admin/listings`, {
           headers: { 'x-auth-token': token }
         });
         setPendingListings(res.data);
@@ -28,6 +30,8 @@ export default function Moderation() {
         if (err.response && err.response.status === 403) {
           alert('Access Denied: Admins Only');
           router.push('/');
+        } else {
+          console.error("Error fetching admin listings:", err);
         }
       } finally {
         setLoading(false);
@@ -40,8 +44,9 @@ export default function Moderation() {
   const handleModeration = async (id, status) => {
     const token = localStorage.getItem('token');
     try {
+      // USE DYNAMIC API URL HERE
       await axios.put(
-        `https://hashmarket-platform.vercel.app/api/admin/moderate/${id}`,
+        `${API_URL}/api/admin/moderate/${id}`,
         { status },
         { headers: { 'x-auth-token': token } }
       );
