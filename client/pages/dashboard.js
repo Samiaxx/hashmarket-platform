@@ -5,8 +5,12 @@ import Footer from '../components/Footer';
 import API_URL from '../lib/api';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
+import { 
+  LayoutDashboard, ShoppingBag, Briefcase, Wallet, 
+  Settings, ArrowUpRight, ArrowDownLeft, Clock 
+} from 'lucide-react';
 
-// --- SUB-COMPONENT: ESCROW TIMELINE ---
+// --- SUB-COMPONENT: ESCROW TIMELINE (Visual Progress) ---
 const EscrowTimeline = ({ status }) => {
   const steps = [
     { id: 'PAID', label: 'Locked', icon: '🔒' },
@@ -53,7 +57,7 @@ const EscrowTimeline = ({ status }) => {
 
 // --- SUB-COMPONENT: STAT CARD ---
 const StatCard = ({ label, value, icon, color }) => (
-  <div className="bg-slate-900/60 backdrop-blur-xl border border-white/5 p-5 rounded-2xl flex items-center gap-4 hover:border-white/10 transition group">
+  <div className="bg-slate-900/60 backdrop-blur-xl border border-white/5 p-5 rounded-2xl flex items-center gap-4 hover:border-white/10 transition group hover:-translate-y-1 duration-300">
     <div className={`w-12 h-12 rounded-xl bg-${color}-500/10 flex items-center justify-center text-2xl group-hover:scale-110 transition`}>
       {icon}
     </div>
@@ -68,6 +72,7 @@ const StatCard = ({ label, value, icon, color }) => (
 export default function Dashboard() {
   const [data, setData] = useState({ purchases: [], sales: [] });
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview'); // STATE TO SWITCH TABS
   const router = useRouter();
 
   useEffect(() => {
@@ -99,6 +104,189 @@ export default function Dashboard() {
     } catch (err) { alert("Action failed"); }
   };
 
+  // --- TABS CONFIGURATION ---
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: <LayoutDashboard size={18} /> },
+    { id: 'orders', label: 'My Orders', icon: <ShoppingBag size={18} /> },
+    { id: 'listings', label: 'My Listings', icon: <Briefcase size={18} /> },
+    { id: 'wallet', label: 'Wallet', icon: <Wallet size={18} /> },
+  ];
+
+  // --- RENDER CONTENT BASED ON ACTIVE TAB ---
+  const renderContent = () => {
+    switch (activeTab) {
+      // 1. OVERVIEW TAB
+      case 'overview':
+        return (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+             {/* Stats Row */}
+             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+                <StatCard label="Net Worth" value="$0.00" icon="💰" color="emerald" />
+                <StatCard label="Total Earnings" value="$0.00" icon="📈" color="blue" />
+                <StatCard label="Active Orders" value={data.purchases.length + data.sales.length} icon="⚡" color="yellow" />
+                <StatCard label="Trust Score" value="100%" icon="🛡️" color="purple" />
+             </div>
+
+             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                {/* Recent Activity Section */}
+                <section>
+                   <h2 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
+                      <span className="w-2 h-6 bg-yellow-500 rounded-full"></span>
+                      Recent Activity
+                   </h2>
+                   {data.purchases.length === 0 && data.sales.length === 0 ? (
+                      <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-10 text-center">
+                         <div className="text-4xl mb-4">💤</div>
+                         <h3 className="text-white font-bold">No activity yet</h3>
+                         <p className="text-slate-500 text-sm mt-2">Your latest transactions will appear here.</p>
+                      </div>
+                   ) : (
+                      <div className="space-y-4">
+                        {/* Combine and show just the last 3 items */}
+                        {[...data.purchases, ...data.sales].slice(0, 3).map(item => (
+                            <div key={item.id} className="bg-slate-900/60 p-4 rounded-xl border border-white/5 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${item.buyerId ? 'bg-blue-500/10 text-blue-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                                        {item.buyerId ? <ArrowDownLeft size={18}/> : <ArrowUpRight size={18}/>}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-sm text-white">{item.itemTitle}</div>
+                                        <div className="text-xs text-slate-500">{new Date().toLocaleDateString()}</div>
+                                    </div>
+                                </div>
+                                <div className="font-mono font-bold text-white">${item.amount}</div>
+                            </div>
+                        ))}
+                      </div>
+                   )}
+                </section>
+             </div>
+          </div>
+        );
+
+      // 2. MY ORDERS TAB
+      case 'orders':
+        return (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <h2 className="text-2xl font-bold text-white mb-6">My Purchase History</h2>
+            {data.purchases.length === 0 ? (
+                <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-12 text-center">
+                    <ShoppingBag size={48} className="mx-auto text-slate-600 mb-4" />
+                    <h3 className="text-white font-bold text-lg">No orders yet</h3>
+                    <Link href="/market" className="text-blue-500 hover:text-blue-400 font-bold mt-2 inline-block">Browse Marketplace →</Link>
+                </div>
+            ) : (
+                <div className="grid gap-6">
+                    {data.purchases.map(order => (
+                        <div key={order.id} className="bg-slate-900/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl hover:border-white/10 transition">
+                            <div className="flex justify-between items-start mb-4">
+                                <div>
+                                    <h3 className="font-bold text-white text-lg">{order.itemTitle}</h3>
+                                    <p className="text-xs text-slate-400 mt-1">Order ID: #{order.id.slice(-8)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="font-mono text-yellow-400 font-bold text-xl">${order.amount}</div>
+                                    <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider bg-slate-800 px-2 py-1 rounded mt-1 inline-block">Escrow Secured</div>
+                                </div>
+                            </div>
+                            <EscrowTimeline status={order.status} />
+                            {order.status === 'SHIPPED' && (
+                                <button onClick={() => updateStatus(order.id, 'COMPLETED')} className="mt-6 w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition shadow-lg shadow-emerald-900/20">
+                                    Confirm Receipt & Release Funds 🔓
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+          </div>
+        );
+
+      // 3. MY LISTINGS TAB
+      case 'listings':
+        return (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+            <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-white">Active Listings</h2>
+                <Link href="/sell" className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm transition">
+                    + New Listing
+                </Link>
+            </div>
+            {data.sales.length === 0 ? (
+                <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-12 text-center">
+                    <Briefcase size={48} className="mx-auto text-slate-600 mb-4" />
+                    <h3 className="text-white font-bold text-lg">No active sales</h3>
+                    <p className="text-slate-500">Start your business on HashMarket today.</p>
+                </div>
+            ) : (
+                <div className="grid gap-6">
+                    {data.sales.map(order => (
+                        <div key={order.id} className="bg-slate-900/60 backdrop-blur-md border border-white/5 p-6 rounded-2xl">
+                             <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-white">{order.itemTitle}</h3>
+                                <span className="bg-emerald-500/10 text-emerald-400 text-xs px-3 py-1 rounded-full border border-emerald-500/20 font-bold">
+                                    {order.status === 'COMPLETED' ? 'SOLD' : 'IN PROGRESS'}
+                                </span>
+                             </div>
+                             <div className="flex items-center gap-4 text-sm text-slate-400">
+                                 <span>Price: <strong className="text-white">${order.amount}</strong></span>
+                                 <span>•</span>
+                                 <span>Buyer: {order.buyerId.slice(0,6)}...</span>
+                             </div>
+                             
+                             <div className="mt-6 pt-4 border-t border-white/5">
+                                {order.status === 'PAID' ? (
+                                    <button onClick={() => updateStatus(order.id, 'SHIPPED')} className="w-full py-2 bg-white text-black font-bold rounded-lg hover:bg-gray-200 transition">
+                                        Mark as Shipped 🚚
+                                    </button>
+                                ) : (
+                                    <div className="w-full py-2 bg-slate-800 text-slate-400 text-center rounded-lg text-sm font-bold">
+                                        {order.status === 'SHIPPED' ? 'Waiting for Buyer Confirmation...' : 'Funds Released to Wallet'}
+                                    </div>
+                                )}
+                             </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+          </div>
+        );
+
+      // 4. WALLET TAB
+      case 'wallet':
+        return (
+          <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+             <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-3xl p-8 border border-indigo-500/30 shadow-2xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
+                
+                <h2 className="text-slate-400 font-bold uppercase tracking-widest text-sm mb-2">Total Balance</h2>
+                <div className="text-5xl font-black text-white mb-8">$0.00 <span className="text-lg text-slate-500 font-medium">USD</span></div>
+
+                <div className="flex gap-4">
+                    <button className="flex-1 bg-white text-indigo-900 font-bold py-3 rounded-xl hover:bg-gray-100 transition shadow-lg">
+                        Withdraw
+                    </button>
+                    <button className="flex-1 bg-indigo-600 text-white font-bold py-3 rounded-xl hover:bg-indigo-500 transition shadow-lg">
+                        Deposit
+                    </button>
+                </div>
+             </div>
+
+             <div className="mt-8">
+                <h3 className="font-bold text-white mb-4">Transaction History</h3>
+                <div className="text-center py-10 text-slate-500 bg-slate-900/50 rounded-xl border border-white/5">
+                    <Clock size={24} className="mx-auto mb-2 opacity-50"/>
+                    No transactions found
+                </div>
+             </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   if (loading) return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-mono">Loading Neural Interface...</div>;
 
   return (
@@ -107,174 +295,77 @@ export default function Dashboard() {
       
       <div className="flex max-w-[1600px] mx-auto min-h-[calc(100vh-80px)]">
         
-        {/* --- 1. SIDEBAR NAVIGATION --- */}
-        <aside className="hidden lg:flex flex-col w-64 border-r border-white/5 bg-slate-900/30 backdrop-blur-md p-6 sticky top-20 h-[calc(100vh-80px)]">
+        {/* --- 1. SIDEBAR NAVIGATION (Desktop) --- */}
+        <aside className="hidden lg:flex flex-col w-72 border-r border-white/5 bg-slate-900/30 backdrop-blur-md p-6 sticky top-20 h-[calc(100vh-80px)]">
            <div className="mb-8">
              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Main Menu</h2>
              <nav className="space-y-2">
-               <button className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600/10 text-blue-400 border border-blue-600/20 rounded-xl font-bold text-sm">
-                 <span>📊</span> Overview
-               </button>
-               <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl font-medium text-sm transition">
-                 <span>📦</span> My Orders
-               </button>
-               <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl font-medium text-sm transition">
-                 <span>💼</span> My Listings
-               </button>
-               <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-white hover:bg-white/5 rounded-xl font-medium text-sm transition">
-                 <span>💳</span> Wallet
-               </button>
+               {tabs.map((tab) => (
+                 <button
+                   key={tab.id}
+                   onClick={() => setActiveTab(tab.id)}
+                   className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all duration-200 ${
+                     activeTab === tab.id 
+                       ? 'bg-blue-600/10 text-blue-400 border border-blue-600/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]' 
+                       : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                   }`}
+                 >
+                   {tab.icon}
+                   {tab.label}
+                 </button>
+               ))}
              </nav>
            </div>
            
            <div className="mt-auto">
-             <div className="bg-gradient-to-br from-emerald-600 to-emerald-800 p-5 rounded-2xl relative overflow-hidden">
+             <div className="bg-gradient-to-br from-emerald-600 to-emerald-900 p-5 rounded-2xl relative overflow-hidden group cursor-pointer hover:shadow-emerald-900/50 hover:shadow-lg transition">
                 <div className="relative z-10">
                    <h3 className="font-bold text-white mb-1">Go Pro</h3>
                    <p className="text-xs text-emerald-100 mb-3 opacity-80">0% fees on your next 5 sales.</p>
-                   <button className="bg-white text-emerald-900 text-xs font-bold px-3 py-2 rounded-lg">Upgrade Now</button>
+                   <button className="bg-white text-emerald-900 text-xs font-bold px-3 py-2 rounded-lg shadow-sm">Upgrade Now</button>
                 </div>
-                <div className="absolute -right-4 -bottom-4 text-6xl opacity-20 rotate-12">💎</div>
+                <div className="absolute -right-4 -bottom-4 text-6xl opacity-20 rotate-12 group-hover:rotate-0 transition duration-500">💎</div>
              </div>
            </div>
         </aside>
 
         {/* --- MAIN CONTENT AREA --- */}
-        <main className="flex-1 p-6 lg:p-10">
+        <main className="flex-1 p-6 lg:p-10 overflow-hidden">
            
            {/* HEADER */}
            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
               <div>
-                <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-                <p className="text-slate-400 text-sm mt-1">Welcome back, Commander. Here is your portfolio status.</p>
+                <h1 className="text-3xl font-bold text-white tracking-tight">Dashboard</h1>
+                <p className="text-slate-400 text-sm mt-1">Welcome back, Commander. Status: <span className="text-emerald-400 font-mono">ONLINE</span></p>
               </div>
               <div className="flex gap-3">
-                 <button onClick={fetchData} className="px-4 py-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-xs font-bold hover:text-white transition">Refresh Data</button>
-                 <Link href="/sell" className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-500 transition shadow-lg shadow-emerald-900/20 flex items-center gap-2">
+                 <button onClick={fetchData} className="px-4 py-2 bg-slate-800 text-slate-300 border border-slate-700 rounded-lg text-xs font-bold hover:text-white transition active:scale-95">Refresh Data</button>
+                 <Link href="/sell" className="px-5 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-500 transition shadow-lg shadow-emerald-900/20 flex items-center gap-2 active:scale-95">
                     <span>+</span> New Listing
                  </Link>
               </div>
            </div>
 
-           {/* --- 2. STATS RIBBON --- */}
-           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
-              <StatCard label="Net Worth" value="$0.00" icon="💰" color="emerald" />
-              <StatCard label="Total Earnings" value="$0.00" icon="📈" color="blue" />
-              <StatCard label="Active Orders" value={data.purchases.length + data.sales.length} icon="⚡" color="yellow" />
-              <StatCard label="Trust Score" value="100%" icon="🛡️" color="purple" />
+           {/* --- MOBILE TABS (Visible only on smaller screens) --- */}
+           <div className="lg:hidden flex overflow-x-auto gap-2 mb-8 pb-2 scrollbar-hide">
+              {tabs.map((tab) => (
+                 <button
+                   key={tab.id}
+                   onClick={() => setActiveTab(tab.id)}
+                   className={`flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-sm whitespace-nowrap transition-all ${
+                     activeTab === tab.id 
+                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/30' 
+                       : 'bg-slate-800 text-slate-400 border border-slate-700'
+                   }`}
+                 >
+                   {tab.label}
+                 </button>
+              ))}
            </div>
 
-           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-              
-              {/* --- LEFT: PURCHASES --- */}
-              <section>
-                 <h2 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
-                    <span className="w-2 h-6 bg-yellow-500 rounded-full"></span>
-                    Recent Purchases
-                 </h2>
+           {/* --- DYNAMIC CONTENT AREA --- */}
+           {renderContent()}
 
-                 {(!data.purchases || data.purchases.length === 0) ? (
-                    // PRO EMPTY STATE
-                    <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center hover:border-slate-700 transition group cursor-pointer" onClick={() => router.push('/market')}>
-                       <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 group-hover:scale-110 transition">🛍️</div>
-                       <h3 className="text-white font-bold mb-1">Start Your Collection</h3>
-                       <p className="text-slate-500 text-sm mb-4">You haven't purchased any items yet.</p>
-                       <span className="text-yellow-500 text-sm font-bold hover:underline">Browse Marketplace →</span>
-                    </div>
-                 ) : (
-                    <div className="space-y-4">
-                       {data.purchases.map(order => (
-                          <div key={order.id} className="bg-slate-900/60 backdrop-blur-md border border-white/5 p-5 rounded-2xl hover:border-white/10 transition">
-                             <div className="flex justify-between items-start mb-4">
-                                <div>
-                                   <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-xs font-bold bg-slate-800 text-slate-400 px-2 py-0.5 rounded uppercase">Buy</span>
-                                      <span className="text-xs text-slate-500">#{order.id.slice(-6)}</span>
-                                   </div>
-                                   <h3 className="font-bold text-white">{order.itemTitle}</h3>
-                                </div>
-                                <div className="text-right">
-                                   <div className="font-mono text-yellow-400 font-bold">${order.amount}</div>
-                                   <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Escrow</div>
-                                </div>
-                             </div>
-                             
-                             <EscrowTimeline status={order.status} />
-
-                             {order.status === 'SHIPPED' && (
-                                <button 
-                                  onClick={() => updateStatus(order.id, 'COMPLETED')}
-                                  className="mt-4 w-full py-3 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-xl font-bold text-sm hover:bg-emerald-600 hover:text-white transition"
-                                >
-                                  Confirm Receipt & Release Funds 🔓
-                                </button>
-                             )}
-                          </div>
-                       ))}
-                    </div>
-                 )}
-              </section>
-
-              {/* --- RIGHT: SALES --- */}
-              <section>
-                 <h2 className="text-lg font-bold text-white mb-5 flex items-center gap-2">
-                    <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
-                    Recent Sales
-                 </h2>
-
-                 {(!data.sales || data.sales.length === 0) ? (
-                    // PRO EMPTY STATE
-                    <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-8 text-center hover:border-slate-700 transition group cursor-pointer" onClick={() => router.push('/sell')}>
-                       <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-3xl mx-auto mb-4 group-hover:scale-110 transition">🚀</div>
-                       <h3 className="text-white font-bold mb-1">Launch Your Business</h3>
-                       <p className="text-slate-500 text-sm mb-4">List your first service or asset today.</p>
-                       <span className="text-blue-500 text-sm font-bold hover:underline">Create Listing →</span>
-                    </div>
-                 ) : (
-                    <div className="space-y-4">
-                       {data.sales.map(order => (
-                          <div key={order.id} className="bg-slate-900/60 backdrop-blur-md border border-white/5 p-5 rounded-2xl hover:border-white/10 transition">
-                             <div className="flex justify-between items-start mb-4">
-                                <div>
-                                   <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-xs font-bold bg-blue-900/50 text-blue-400 px-2 py-0.5 rounded uppercase border border-blue-500/20">Sale</span>
-                                      <span className="text-xs text-slate-500">#{order.id.slice(-6)}</span>
-                                   </div>
-                                   <h3 className="font-bold text-white">{order.itemTitle}</h3>
-                                </div>
-                                <div className="text-right">
-                                   <div className="font-mono text-emerald-400 font-bold">+${order.amount}</div>
-                                   <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Pending</div>
-                                </div>
-                             </div>
-
-                             <EscrowTimeline status={order.status} />
-
-                             <div className="mt-4">
-                                {order.status === 'PAID' ? (
-                                    <button 
-                                        onClick={() => updateStatus(order.id, 'SHIPPED')}
-                                        className="w-full py-3 bg-white text-black font-bold rounded-xl text-sm hover:bg-gray-200 transition shadow-lg"
-                                    >
-                                        Mark as Shipped 🚚
-                                    </button>
-                                ) : order.status === 'SHIPPED' ? (
-                                    <div className="w-full py-3 bg-slate-800 text-slate-400 font-bold rounded-xl text-sm text-center border border-slate-700">
-                                        ⏳ Awaiting Buyer Confirmation
-                                    </div>
-                                ) : (
-                                    <div className="w-full py-3 bg-emerald-500/10 text-emerald-400 font-bold rounded-xl text-sm text-center border border-emerald-500/20">
-                                        ✓ Funds Released
-                                    </div>
-                                )}
-                             </div>
-                          </div>
-                       ))}
-                    </div>
-                 )}
-              </section>
-
-           </div>
         </main>
       </div>
       <Footer />
