@@ -1,11 +1,12 @@
 import { ethers } from "ethers";
 
 // --- 1. CONFIGURATION ---
-export const CONTRACT_ADDRESS = "0x01386CE38384956BCd39DE2100Eb31AA842cE7f2"; // Your deployed contract
+// This is your Live Smart Contract on Sepolia
+export const CONTRACT_ADDRESS = "0x230640abDdEe8c260A90AA3358Af7131D2D88a39"; 
 
 export const CONTRACT_ABI = [
-  // Core Escrow Functions
-  "function createOrder(uint256 orderId) external payable",
+  // Core Functions (Updated for 10% Fee Logic)
+  "function createOrder(uint256 orderId, address seller) external payable", 
   "function confirmDelivery(uint256 orderId) external",
   "function refundBuyer(uint256 orderId) external",
   
@@ -25,7 +26,7 @@ export const checkWallet = async () => {
   const provider = new ethers.BrowserProvider(window.ethereum);
   const network = await provider.getNetwork();
   
-  // Chain ID for Sepolia is 11155111. Change to 1 (Mainnet) or 137 (Polygon) for production.
+  // Chain ID for Sepolia is 11155111.
   if (network.chainId !== 11155111n) { 
     try {
       await window.ethereum.request({
