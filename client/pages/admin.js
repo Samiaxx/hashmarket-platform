@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import Navbar from '../components/Navbar';
 import { useRouter } from 'next/router';
+import API_URL from '../lib/api'; // <--- IMPORT THIS
 
 export default function AdminPanel() {
   const [listings, setListings] = useState([]);
@@ -16,25 +17,26 @@ export default function AdminPanel() {
     if (!token) return router.push('/login');
 
     try {
-      const res = await axios.get('https://hashmarket-platform.vercel.app/api/admin/listings', {
+      // UPDATED: Use API_URL
+      const res = await axios.get(`${API_URL}/api/admin/listings`, {
         headers: { 'x-auth-token': token }
       });
       setListings(res.data);
     } catch (err) {
       console.error("Not an admin or error fetching");
-      // Optional: Redirect if not admin
     }
   };
 
   const handleModerate = async (id, status) => {
     const token = localStorage.getItem('token');
     try {
-      await axios.put(`https://hashmarket-platform.vercel.app/api/admin/moderate/${id}`, 
+      // UPDATED: Use API_URL
+      await axios.put(`${API_URL}/api/admin/moderate/${id}`, 
         { status }, 
         { headers: { 'x-auth-token': token } }
       );
       alert(`Item ${status}!`);
-      fetchPending(); // Refresh list
+      fetchPending(); 
     } catch (err) {
       alert("Action failed");
     }
@@ -54,13 +56,12 @@ export default function AdminPanel() {
               <div key={item._id} className="bg-white p-6 rounded-lg shadow flex justify-between items-center">
                 <div>
                   <h3 className="font-bold text-xl">{item.title}</h3>
-                  <p className="text-slate-500">{item.description}</p>
                   <p className="text-emerald-600 font-bold">${item.price}</p>
                   <p className="text-xs text-slate-400">Seller: {item.seller.username}</p>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => handleModerate(item._id, 'APPROVED')} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Approve</button>
-                  <button onClick={() => handleModerate(item._id, 'REJECTED')} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Reject</button>
+                  <button onClick={() => handleModerate(item._id, 'APPROVED')} className="bg-green-600 text-white px-4 py-2 rounded">Approve</button>
+                  <button onClick={() => handleModerate(item._id, 'REJECTED')} className="bg-red-600 text-white px-4 py-2 rounded">Reject</button>
                 </div>
               </div>
             ))}
