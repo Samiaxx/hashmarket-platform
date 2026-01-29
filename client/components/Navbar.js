@@ -44,21 +44,31 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 2. Connect Wallet Logic
+  // 2. Connect Wallet Logic (FIXED: Handles User Rejection)
   const connectWallet = async () => {
     if (!window.ethereum) {
       alert("Please install MetaMask to use this feature!");
       return;
     }
+    
     setIsConnecting(true);
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
+      // This line triggers the popup. If user clicks "Cancel", it throws an error.
       const accounts = await provider.send("eth_requestAccounts", []);
+      
       const address = accounts[0];
       setWallet(address);
       localStorage.setItem('wallet', address);
+      
     } catch (error) {
-      console.error("Connection failed", error);
+      // FIX: Check if the user simply rejected the request
+      if (error.code === 4001 || error.code === 'ACTION_REJECTED') {
+        console.warn("User rejected wallet connection."); // Warn is better than Error (doesn't crash app)
+      } else {
+        console.error("Wallet connection failed:", error);
+        alert("Failed to connect wallet. See console for details.");
+      }
     } finally {
       setIsConnecting(false);
     }
@@ -77,17 +87,17 @@ export default function Navbar() {
 
   return (
     // GLASSMORPHISM HEADER
-    <nav className="sticky top-0 z-50 w-full bg-[#0a0a0a]/70 backdrop-blur-2xl border-b border-white/5 shadow-2xl transition-all duration-300">
-      <div className="container mx-auto px-6 h-20 flex justify-between items-center relative">
+    <nav className="sticky top-0 z-[100] w-full bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5 shadow-2xl transition-all duration-300">
+      <div className="container mx-auto px-4 md:px-6 h-20 flex justify-between items-center relative">
         
         {/* --- LEFT: BRANDING --- */}
-        <Link href="/" className="flex items-center gap-3 group z-50">
-          <div className="relative w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 p-[1px] shadow-[0_0_20px_rgba(6,182,212,0.3)] group-hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] transition-all duration-500">
+        <Link href="/" className="flex items-center gap-2 md:gap-3 group z-50">
+          <div className="relative w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 p-[1px] shadow-[0_0_20px_rgba(6,182,212,0.3)] group-hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] transition-all duration-500">
              <div className="w-full h-full bg-black rounded-xl flex items-center justify-center backdrop-blur-sm">
-                <span className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-tr from-cyan-400 to-blue-500">H</span>
+                <span className="text-lg md:text-xl font-black text-transparent bg-clip-text bg-gradient-to-tr from-cyan-400 to-blue-500">H</span>
              </div>
           </div>
-          <span className="text-xl md:text-2xl font-black text-white tracking-tighter">
+          <span className="text-lg md:text-2xl font-black text-white tracking-tighter">
             Hash<span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Market</span>
           </span>
         </Link>
@@ -112,44 +122,45 @@ export default function Navbar() {
         </div>
 
         {/* --- CENTER: GLOBAL SEARCH (Desktop) --- */}
-        <div className="hidden md:flex items-center bg-white/5 rounded-2xl px-4 py-2.5 border border-white/5 w-96 transition-all focus-within:border-cyan-500/50 focus-within:bg-white/10 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.1)]">
+        <div className="hidden lg:flex items-center bg-white/5 rounded-2xl px-4 py-2.5 border border-white/5 w-80 xl:w-96 transition-all focus-within:border-cyan-500/50 focus-within:bg-white/10 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.1)]">
             <Search size={18} className="text-gray-400 mr-3" />
             <input 
               type="text" 
-              placeholder="Search assets, services, creators..." 
+              placeholder="Search assets, services..." 
               className="bg-transparent border-none outline-none text-sm text-white w-full placeholder-gray-500 font-medium"
             />
         </div>
 
         {/* --- RIGHT: DESKTOP NAVIGATION --- */}
-        <div className="hidden md:flex items-center gap-5">
-          <Link href="/market" className="text-sm font-bold text-gray-400 hover:text-white transition-colors tracking-wide">Explore</Link>
+        <div className="hidden md:flex items-center gap-4">
+          <Link href="/market" className="text-sm font-bold text-gray-400 hover:text-white transition-colors tracking-wide mr-2">Explore</Link>
           
           {user ? (
+            // LOGGED IN VIEW
             <>
               {user.role === 'seller' && (
                 <Link href="/sell" className="text-sm font-bold text-gray-400 hover:text-cyan-400 transition-colors tracking-wide">Sell</Link>
               )}
               <Link href="/chat" className="text-gray-400 hover:text-white transition-colors font-bold text-sm tracking-wide">Messages</Link>
 
-              {/* Notification Bell with Pulse */}
+              {/* Notification Bell */}
               <button className="relative p-2.5 text-gray-400 hover:text-white transition hover:bg-white/5 rounded-xl active:scale-95">
                 <Bell size={20} />
                 <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.5)] animate-pulse"></span>
               </button>
 
-              {/* Wallet Button - Premium Glow */}
+              {/* Wallet Button */}
               <button 
                 onClick={connectWallet}
                 disabled={isConnecting}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 border ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all active:scale-95 border ${
                   wallet 
                     ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]' 
-                    : 'bg-white text-black hover:bg-gray-100 border-transparent shadow-[0_0_15px_rgba(255,255,255,0.2)]'
+                    : 'bg-white/5 text-gray-300 hover:bg-white/10 border-white/10'
                 }`}
               >
                 <Wallet size={16} />
-                {isConnecting ? 'Connecting...' : wallet ? `${wallet.substring(0, 6)}...` : 'Connect Wallet'}
+                {isConnecting ? '...' : wallet ? `${wallet.substring(0, 6)}...` : 'Connect'}
               </button>
 
               {/* Profile Dropdown */}
@@ -186,23 +197,32 @@ export default function Navbar() {
               </div>
             </>
           ) : (
-            <div className="flex gap-4 items-center">
-              <Link href="/login" className="text-sm font-bold text-gray-300 hover:text-white transition">Log In</Link>
-              <Link href="/register" className="bg-white text-black px-6 py-2.5 rounded-full font-bold hover:bg-gray-100 transition text-sm shadow-[0_0_20px_rgba(255,255,255,0.15)] active:scale-95">Sign Up</Link>
+            // LOGGED OUT VIEW - THE FIX FOR VISIBILITY
+            <div className="flex gap-3 items-center ml-2">
+              <Link 
+                href="/login" 
+                className="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition backdrop-blur-md flex items-center gap-2"
+              >
+                Log In
+              </Link>
+              <Link 
+                href="/register" 
+                className="px-6 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-cyan-600 to-blue-600 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 hover:-translate-y-0.5 transition-all active:scale-95"
+              >
+                Sign Up
+              </Link>
             </div>
           )}
         </div>
       </div>
 
-      {/* --- MOBILE SLIDE-OVER DRAWER (Premium Animation) --- */}
-      {/* Background Overlay */}
+      {/* --- MOBILE SLIDE-OVER DRAWER --- */}
       <div 
-        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300 md:hidden ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-black/60 backdrop-blur-sm z-[110] transition-opacity duration-300 md:hidden ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={closeMobile}
       />
 
-      {/* The Drawer Panel */}
-      <div className={`fixed top-0 right-0 h-full w-[85%] max-w-sm bg-[#0a0a0a]/95 backdrop-blur-2xl border-l border-white/10 z-50 transform transition-transform duration-300 ease-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={`fixed top-0 right-0 h-full w-[85%] max-w-sm bg-[#0a0a0a]/95 backdrop-blur-2xl border-l border-white/10 z-[120] transform transition-transform duration-300 ease-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 flex flex-col h-full">
            
            {/* Drawer Header */}
@@ -216,7 +236,7 @@ export default function Navbar() {
            {/* Mobile Search */}
            <div className="flex items-center bg-white/5 rounded-2xl px-4 py-3 border border-white/5 mb-8 focus-within:border-cyan-500/50 transition-colors">
               <Search size={20} className="text-gray-500 mr-3" />
-              <input type="text" placeholder="Search HashMarket..." className="bg-transparent border-none outline-none text-white w-full placeholder-gray-500 text-base" />
+              <input type="text" placeholder="Search..." className="bg-transparent border-none outline-none text-white w-full placeholder-gray-500 text-base" />
           </div>
 
           {/* Navigation Links */}
@@ -241,7 +261,7 @@ export default function Navbar() {
           </div>
           
           {/* Bottom Actions */}
-          <div className="mt-auto space-y-4 pb-safe"> {/* padding-bottom: env(safe-area-inset-bottom) usually handled by parent or specific class if needed */}
+          <div className="mt-auto space-y-4 pb-6">
             {!wallet && (
               <button 
                 onClick={() => { connectWallet(); closeMobile(); }}
@@ -257,7 +277,7 @@ export default function Navbar() {
                </button>
             ) : (
                <div className="grid grid-cols-2 gap-4">
-                 <Link href="/login" onClick={closeMobile} className="w-full flex justify-center items-center py-4 rounded-2xl font-bold text-lg text-gray-300 border border-white/10 bg-white/5 active:scale-95 transition-all">Log In</Link>
+                 <Link href="/login" onClick={closeMobile} className="w-full flex justify-center items-center py-4 rounded-2xl font-bold text-lg text-white border border-white/10 bg-white/5 active:scale-95 transition-all">Log In</Link>
                  <Link href="/register" onClick={closeMobile} className="w-full flex justify-center items-center py-4 rounded-2xl font-bold text-lg bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.1)] active:scale-95 transition-all">Sign Up</Link>
                </div>
             )}

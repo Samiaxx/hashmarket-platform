@@ -6,7 +6,7 @@ const jwt = require("jsonwebtoken");
 const { ethers } = require("ethers");
 require("dotenv").config();
 
-// --- IMPORT MODELS (Crucial!) ---
+// --- IMPORT MODELS ---
 const User = require("./models/User");
 const Listing = require("./models/Listing");
 const SellerProfile = require("./models/SellerProfile");
@@ -19,13 +19,9 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 // --- MONGODB CONNECTION ---
-// This uses the MONGO_URI from your .env file
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected Successfully"))
+  .then(() => console.log("✅ MongoDB Connected: HashMarket Production DB"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
-
-// --- ROOT ROUTE ---
-app.get("/", (req, res) => res.send("HashMarket API (MongoDB) is Running!"));
 
 // --- AUTH MIDDLEWARE ---
 const auth = (req, res, next) => {
@@ -58,6 +54,8 @@ const adminAuth = async (req, res, next) => {
 // =========================================================================
 // 1. AUTH ROUTES
 // =========================================================================
+
+// Register User
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password, role } = req.body;
   try {
@@ -78,6 +76,7 @@ app.post("/api/auth/register", async (req, res) => {
   } catch (err) { res.status(500).send("Server error"); }
 });
 
+// Login User
 app.post("/api/auth/login", async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -95,37 +94,24 @@ app.post("/api/auth/login", async (req, res) => {
   } catch (err) { res.status(500).send("Server error"); }
 });
 
-app.post("/api/auth/metamask", async (req, res) => {
-  const { address, signature, message } = req.body;
-  try {
-    const signerAddr = ethers.verifyMessage(message, signature);
-    if (signerAddr.toLowerCase() !== address.toLowerCase()) return res.status(401).json({ msg: "Signature verification failed" });
-
-    let user = await User.findOne({ wallet_address: address });
-    if (!user) {
-      user = new User({
-        username: `User_${address.substring(0, 6)}`,
-        wallet_address: address,
-        role: "buyer",
-        email: `${address}@wallet.placeholder`,
-        password: await bcrypt.hash(Math.random().toString(), 10)
-      });
-      await user.save();
-    }
-    const payload = { user: { id: user.id, role: user.role } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (err, token) => res.json({ token, user: { id: user.id, username: user.username, role: user.role } }));
-  } catch (err) { res.status(500).json({ msg: "Wallet Login Error" }); }
-});
-
 // =========================================================================
 // 2. SELLER & PROFILE ROUTES
 // =========================================================================
+
+// Onboard Seller (And save their payout wallet)
 app.post("/api/seller/onboard", auth, async (req, res) => {
   const { displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet } = req.body;
   try {
     const profileFields = {
       user: req.user.id, displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet
     };
+
+    // Update User model with wallet for easier access
+    await User.findByIdAndUpdate(req.user.id, { 
+      role: "seller", 
+      wallet_address: payoutWallet // Save wallet to User model too
+    });
+
     let profile = await SellerProfile.findOne({ user: req.user.id });
     if (profile) {
       profile = await SellerProfile.findOneAndUpdate({ user: req.user.id }, { $set: profileFields }, { new: true });
@@ -133,24 +119,16 @@ app.post("/api/seller/onboard", auth, async (req, res) => {
       profile = new SellerProfile(profileFields);
       await profile.save();
     }
-    await User.findByIdAndUpdate(req.user.id, { role: "seller" });
+    
     res.json(profile);
-  } catch (err) { res.status(500).send("Server Error"); }
-});
-
-app.get("/api/users/:id", async (req, res) => {
-  try {
-    const user = await User.findById(req.params.id).select("-password");
-    if (!user) return res.status(404).json({ msg: "User not found" });
-    const profile = await SellerProfile.findOne({ user: user.id });
-    res.json({ ...user._doc, ...(profile ? profile._doc : {}) });
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
 // =========================================================================
 // 3. MARKETPLACE ROUTES
 // =========================================================================
-// GET ALL LISTINGS (Filtered)
+
+// GET ALL LISTINGS
 app.get("/api/listings", async (req, res) => {
   const { seller, cat } = req.query;
   try {
@@ -161,33 +139,37 @@ app.get("/api/listings", async (req, res) => {
     }
     if (cat) filter.category = { $regex: cat.replace('-', ' '), $options: "i" };
 
-    const listings = await Listing.find(filter).populate("seller", "username created_at");
+    // Populate seller and their wallet address
+    const listings = await Listing.find(filter).populate("seller", "username wallet_address created_at");
     
     const formatted = listings.map(item => ({
       ...item._doc,
       sellerName: item.seller?.username || "Unknown",
-      seller_id: item.seller?._id,
+      sellerWalletAddress: item.seller?.wallet_address || "",
       isNewSeller: item.seller?.created_at && (new Date() - new Date(item.seller.created_at)) / (1000 * 60 * 60 * 24) < 30
     }));
     res.json(formatted);
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// GET SINGLE LISTING (For Product Page)
+// GET SINGLE LISTING (Crucial for Checkout)
 app.get("/api/listings/:id", async (req, res) => {
   try {
-    const listing = await Listing.findById(req.params.id).populate("seller", "username created_at");
+    // We populate 'wallet_address' so the frontend can send it to the Escrow contract
+    const listing = await Listing.findById(req.params.id).populate("seller", "username wallet_address created_at");
     if (!listing) return res.status(404).json({ msg: "Item not found" });
     
     const profile = await SellerProfile.findOne({ user: listing.seller._id });
     res.json({
       ...listing._doc,
       sellerName: listing.seller.username,
-      sellerImage: profile?.profile_image
+      sellerWalletAddress: listing.seller.wallet_address, // Needed for createOrder()
+      sellerImage: profile?.profileImage || profile?.profile_image
     });
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
+// Create New Listing
 app.post("/api/listings", auth, async (req, res) => {
   try {
     const newListing = new Listing({
@@ -196,7 +178,7 @@ app.post("/api/listings", auth, async (req, res) => {
       description: req.body.description,
       price: req.body.price,
       category: req.body.category,
-      image_url: req.body.imageUrl, 
+      image_url: req.body.imageUrl || req.body.image_url, 
       status: "PENDING"
     });
     const listing = await newListing.save();
@@ -205,7 +187,64 @@ app.post("/api/listings", auth, async (req, res) => {
 });
 
 // =========================================================================
-// 4. ADMIN & ORDERS ROUTES
+// 4. ORDERS & DASHBOARD
+// =========================================================================
+
+// Create Order after Blockchain Payment
+app.post("/api/orders", auth, async (req, res) => {
+  try {
+    const { listingId, amount, txHash } = req.body;
+    const listing = await Listing.findById(listingId);
+    if (!listing) return res.status(404).json({ msg: "Listing not found" });
+
+    const newOrder = new Order({
+      buyer: req.user.id, 
+      seller: listing.seller, 
+      listing: listingId,
+      amount, 
+      txHash, 
+      itemTitle: listing.title, 
+      status: "PAID" // Initial state after buyer deposits to contract
+    });
+    const order = await newOrder.save();
+    res.json(order);
+  } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// Dashboard Data
+app.get("/api/dashboard", auth, async (req, res) => {
+  try {
+    const purchases = await Order.find({ buyer: req.user.id }).sort({ createdAt: -1 });
+    const sales = await Order.find({ seller: req.user.id }).sort({ createdAt: -1 });
+    
+    const formatOrder = (o) => ({ 
+      id: o._id, 
+      itemTitle: o.itemTitle, 
+      amount: o.amount, 
+      status: o.status, 
+      buyerId: o.buyer, 
+      sellerId: o.seller,
+      txHash: o.txHash 
+    });
+
+    res.json({ 
+      purchases: purchases.map(formatOrder), 
+      sales: sales.map(formatOrder) 
+    });
+  } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// Update Order Status (e.g., PAID -> SHIPPED -> COMPLETED)
+app.put("/api/orders/:id/status", auth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    res.json(order);
+  } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// =========================================================================
+// 5. ADMIN ROUTES
 // =========================================================================
 app.get("/api/admin/listings", adminAuth, async (req, res) => {
   try {
@@ -222,37 +261,6 @@ app.put("/api/admin/moderate/:id", adminAuth, async (req, res) => {
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
-app.post("/api/orders", auth, async (req, res) => {
-  try {
-    const { listingId, amount, txHash } = req.body;
-    const listing = await Listing.findById(listingId);
-    if (!listing) return res.status(404).json({ msg: "Listing not found" });
-
-    const newOrder = new Order({
-      buyer: req.user.id, seller: listing.seller, listing: listingId,
-      amount, txHash, itemTitle: listing.title, status: "PAID"
-    });
-    const order = await newOrder.save();
-    res.json(order);
-  } catch (err) { res.status(500).send("Server Error"); }
-});
-
-app.get("/api/dashboard", auth, async (req, res) => {
-  try {
-    const purchases = await Order.find({ buyer: req.user.id }).sort({ createdAt: -1 });
-    const sales = await Order.find({ seller: req.user.id }).sort({ createdAt: -1 });
-    const formatOrder = (o) => ({ id: o._id, itemTitle: o.itemTitle, amount: o.amount, status: o.status, buyerId: o.buyer, sellerId: o.seller });
-    res.json({ purchases: purchases.map(formatOrder), sales: sales.map(formatOrder) });
-  } catch (err) { res.status(500).send("Server Error"); }
-});
-
-app.put("/api/orders/:id/status", auth, async (req, res) => {
-  try {
-    const { status } = req.body;
-    const order = await Order.findByIdAndUpdate(req.params.id, { status }, { new: true });
-    res.json(order);
-  } catch (err) { res.status(500).send("Server Error"); }
-});
-
+// --- START SERVER ---
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 HashMarket Server running on port ${PORT}`));

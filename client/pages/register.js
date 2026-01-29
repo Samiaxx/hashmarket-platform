@@ -7,7 +7,6 @@ export default function Register() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isSuccess, setIsSuccess] = useState(false); // <--- Added back for Verification Flow
   
   const [form, setForm] = useState({
     username: "",
@@ -33,8 +32,13 @@ export default function Register() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.msg || "Registration failed");
 
-      // INSTEAD OF REDIRECTING, SHOW SUCCESS OVERLAY
-      setIsSuccess(true);
+      // --- FIX: AUTO-LOGIN & REDIRECT ---
+      // 1. Save the token and user data to local storage (Just like Login)
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+
+      // 2. Redirect straight to Dashboard
+      router.push('/dashboard');
       
     } catch (err) {
       setError(err.message);
@@ -49,36 +53,14 @@ export default function Register() {
       {/* BACKGROUND GLOW EFFECTS */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-yellow-500/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-      {/* --- SUCCESS OVERLAY (Verification Logic) --- */}
-      {isSuccess && (
-        <div className="absolute inset-0 z-50 bg-[#0B0F19]/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-300">
-           <div className="bg-[#111827] border border-yellow-500/30 p-8 rounded-2xl max-w-md text-center shadow-[0_0_50px_rgba(234,179,8,0.2)] relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent"></div>
-              
-              <div className="w-20 h-20 bg-yellow-500/20 text-yellow-500 rounded-full flex items-center justify-center text-4xl mb-6 mx-auto border border-yellow-500/30">
-                📩
-              </div>
-              
-              <h2 className="text-3xl font-extrabold text-white mb-3">Check Your Inbox</h2>
-              <p className="text-gray-400 mb-8 text-lg leading-relaxed">
-                We've sent a verification link to <span className="text-white font-bold">{form.email}</span>. 
-                Please click it to activate your <span className="capitalize text-yellow-500">{form.role}</span> account.
-              </p>
-              
-              <Link href="/login" className="block w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl transition shadow-lg shadow-yellow-500/20">
-                Return to Login
-              </Link>
-           </div>
-        </div>
-      )}
-
       <div className="w-full max-w-md relative z-10">
         
         {/* LOGO HEADER */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3 mb-4 group cursor-pointer no-underline">
             <div className="w-12 h-12 rounded-xl border border-gray-800 bg-[#111827] flex items-center justify-center shadow-lg group-hover:scale-105 transition">
-              <img src="/logo.png" className="w-8 h-8 object-contain" alt="Logo" onError={(e) => e.target.style.display='none'} />
+              {/* Ensure you have a logo.png in your public folder */}
+              <img src="/logo.png" className="w-8 h-8 object-contain" alt="H" onError={(e) => e.target.style.display='none'} />
             </div>
           </Link>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">Create Account</h1>

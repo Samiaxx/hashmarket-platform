@@ -5,80 +5,129 @@
 @tailwind utilities;
 
 :root {
-  --bg-main: #0B0F19;       /* Deep Navy/Black */
-  --bg-card: #111827;       /* Lighter Slate for cards */
-  --bg-input: #1F2937;      /* Input fields */
-  --accent: #F59E0B;        /* Gold */
+  /* --- COLOR PALETTE --- */
+  --bg-main: #0B0F19;       /* Deep Navy/Black Background */
+  --bg-card: #111827;       /* Card Background */
+  --bg-input: #1F2937;      /* Input Fields */
+  
+  /* Brand Colors (Matches your new Navbar) */
+  --brand-cyan: #06b6d4;    /* Cyan-500 */
+  --brand-blue: #3b82f6;    /* Blue-500 */
+  --accent: #F59E0B;        /* Gold (for specific alerts) */
+
   --text-main: #F3F4F6;
   --text-muted: #9CA3AF;
   --border: #374151;
 }
 
-body {
-  background-color: var(--bg-main);
-  color: var(--text-main);
+/* --- 1. CORE MOBILE FIXES --- */
+html, body {
+  @apply bg-slate-950 text-slate-100;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* --- UTILITIES FOR PROFESSIONAL LOOK --- */
-
-.container-width {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
-}
-
-/* Glass Card Effect */
-.glass-panel {
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 1rem;
-}
-
-/* Professional Input Fields */
-.input-field {
+  
+  /* PREVENTS HORIZONTAL SCROLLING BUGS */
+  overflow-x: hidden; 
   width: 100%;
-  background-color: var(--bg-input);
-  border: 1px solid var(--border);
-  color: white;
+  position: relative;
+  -webkit-tap-highlight-color: transparent; /* Removes blue tap box on Android */
+}
+
+/* Handle iPhone Notch Areas */
+body {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* --- 2. PREMIUM COMPONENTS --- */
+
+/* The Glassmorphism Card Style */
+.glass-panel {
+  @apply bg-slate-900/60 backdrop-blur-xl border border-white/5 rounded-2xl;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.glass-panel:hover {
+  @apply border-white/10 shadow-lg;
+  transform: translateY(-2px); /* Subtle lift effect */
+}
+
+/* Inputs: Touch-Friendly & No Zoom */
+.input-field {
+  @apply w-full bg-slate-800/50 border border-slate-700 text-white rounded-xl outline-none transition-all;
   padding: 0.85rem 1rem;
-  border-radius: 0.75rem;
-  transition: all 0.2s;
-  outline: none;
+  font-size: 16px; /* IMPORTANT: Prevents iOS zoom on focus */
 }
 
 .input-field:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+  @apply border-cyan-500 ring-1 ring-cyan-500/20 bg-slate-800;
 }
 
-/* Buttons */
-.btn-primary {
-  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
-  color: black;
-  font-weight: 700;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.75rem;
-  transition: transform 0.1s ease, box-shadow 0.2s ease;
-}
+/* --- 3. BUTTONS (The "Marketplace" Look) --- */
 
-.btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(245, 158, 11, 0.3);
-}
-
-.btn-secondary {
-  background: transparent;
-  border: 1px solid var(--border);
+/* Primary Action (Gradient) */
+.btn-brand {
+  background: linear-gradient(135deg, var(--brand-cyan) 0%, var(--brand-blue) 100%);
   color: white;
-  font-weight: 600;
-  padding: 0.75rem 1.5rem;
+  font-weight: 700;
+  padding: 0.85rem 1.5rem;
   border-radius: 0.75rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(6, 182, 212, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-brand:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(6, 182, 212, 0.3);
+}
+
+.btn-brand:active {
+  transform: scale(0.98);
+}
+
+/* Secondary Action (Outline/Glass) */
+.btn-secondary {
+  @apply bg-white/5 border border-white/10 text-white font-bold rounded-xl backdrop-blur-md;
+  padding: 0.85rem 1.5rem;
+  transition: all 0.2s;
 }
 
 .btn-secondary:hover {
-  background: rgba(255,255,255,0.05);
-  border-color: white;
+  @apply bg-white/10 border-white/20;
+}
+
+/* --- 4. UTILITIES --- */
+.container-width {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Custom Scrollbar (Desktop Only) */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--bg-main);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 10px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--brand-cyan); /* Scrollbar glows when grabbed */
+  }
+}
+
+/* Animations */
+@keyframes fadeInScale {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-in {
+  animation: fadeInScale 0.4s ease-out forwards;
 }
