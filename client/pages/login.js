@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { ethers } from 'ethers'; // The library for Blockchain interaction
+import { ethers } from 'ethers'; 
 import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import API_URL from '../lib/api';
 
-// YOUR CLIENT ID
 const GOOGLE_CLIENT_ID = "1097072821368-63877sdog6sqjr8d3rlr9kvcd8hbbe1h.apps.googleusercontent.com";
 
 export default function Login() {
@@ -19,16 +18,22 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [walletLoading, setWalletLoading] = useState(false);
 
+  // --- HELPER: HANDLE REDIRECT ---
+  // Redirects Sellers to Onboarding, Buyers to Dashboard
+  const handleAuthRedirect = (user) => {
+     if (user.role === 'seller') {
+         router.push('/seller-onboarding');
+     } else {
+         router.push('/dashboard');
+     }
+  };
+
   // --- REAL-TIME WALLET LISTENER ---
   useEffect(() => {
     if (window.ethereum) {
-      // If user switches accounts in MetaMask while on this page
       window.ethereum.on('accountsChanged', (accounts) => {
         if (accounts.length > 0) {
           console.log("User switched account to:", accounts[0]);
-          // Optional: Auto-trigger login flow here if desired
-        } else {
-          console.log("User disconnected");
         }
       });
     }
@@ -40,9 +45,8 @@ export default function Login() {
     setError('');
   };
 
-  // 1. REAL WALLET LOGIN (Ethers V6 + Signature)
+  // 1. REAL WALLET LOGIN
   const handleWalletLogin = async () => {
-    // A. Check if MetaMask is installed
     if (!window.ethereum) {
       alert("MetaMask is not installed! Please install it to continue.");
       return;
@@ -52,24 +56,12 @@ export default function Login() {
     setError('');
 
     try {
-      // B. Connect to Provider
-      // This pops up the MetaMask window asking to connect
       const provider = new ethers.BrowserProvider(window.ethereum);
-      
-      // C. Get the User's Account (Signer)
       const signer = await provider.getSigner();
       const address = await signer.getAddress();
-
-      console.log("Connected Address:", address);
-
-      // D. THE SECURITY STEP (Signature)
-      // We ask them to sign a message. This proves they own the private key.
       const message = `Login to HashMarket\nTimestamp: ${Date.now()}`;
       const signature = await signer.signMessage(message);
 
-      console.log("Signature:", signature);
-
-      // E. Verify on Backend & Get Session Token
       const res = await fetch(`${API_URL}/api/auth/metamask`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -79,17 +71,14 @@ export default function Login() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.msg || "Wallet login failed");
 
-      // F. Success! Save User & Redirect
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       
-      alert(`Login Success! Wallet: ${address.slice(0,6)}...`);
-      router.push('/dashboard');
+      handleAuthRedirect(data.user); // Redirect based on role
 
     } catch (err) {
       console.error("Connection Error:", err);
-      // Nice error handling
-      if (err.code === 4001) { // 4001 is MetaMask "User Rejected Request" code
+      if (err.code === 4001) { 
          setError("You rejected the connection request.");
       } else {
          setError("Wallet login failed. Please try again.");
@@ -121,7 +110,8 @@ export default function Login() {
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      router.push('/dashboard');
+      
+      handleAuthRedirect(data.user); // Redirect based on role
 
     } catch (err) {
       console.error(err);
@@ -146,7 +136,9 @@ export default function Login() {
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
-      router.push('/dashboard');
+      
+      handleAuthRedirect(data.user); // Redirect based on role
+      
     } catch (err) {
       setError(err.message);
     } finally {

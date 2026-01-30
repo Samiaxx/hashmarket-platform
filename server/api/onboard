@@ -1,0 +1,26 @@
+app.post("/api/seller/onboard", auth, async (req, res) => {
+  const { displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet } = req.body;
+  try {
+    const profileFields = {
+      user: req.user.id, displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet
+    };
+
+    // --- UPDATE: SET onboardingCompleted to TRUE ---
+    await User.findByIdAndUpdate(req.user.id, { 
+      role: "seller", 
+      wallet_address: payoutWallet,
+      onboardingCompleted: true // <--- THIS UNLOCKS THE DASHBOARD
+    });
+
+    let profile = await SellerProfile.findOne({ user: req.user.id });
+    if (profile) {
+      profile = await SellerProfile.findOneAndUpdate({ user: req.user.id }, { $set: profileFields }, { new: true });
+    } else {
+      profile = new SellerProfile(profileFields);
+      await profile.save();
+    }
+    
+    // Return the updated user info so frontend knows to unlock immediately
+    res.json({ profile, msg: "Profile Completed" });
+  } catch (err) { res.status(500).send("Server Error"); }
+});

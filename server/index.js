@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { ethers } = require("ethers");
+const sgMail = require('@sendgrid/mail'); 
 require("dotenv").config();
 
 // --- IMPORT MODELS ---
@@ -13,6 +14,10 @@ const SellerProfile = require("./models/SellerProfile");
 const Order = require("./models/Order"); 
 
 const app = express();
+
+// --- SENDGRID CONFIG ---
+// Make sure SENDGRID_API_KEY is in your .env file
+sgMail.setApiKey(process.env.SENDGRID_API_KEY); 
 
 // --- MIDDLEWARE ---
 app.use(cors({ origin: "*" }));
@@ -55,7 +60,7 @@ const adminAuth = async (req, res, next) => {
 // 1. AUTH ROUTES
 // =========================================================================
 
-// Register User
+// Register User + Send Verification Email
 app.post("/api/auth/register", async (req, res) => {
   const { username, email, password, role } = req.body;
   try {
@@ -65,15 +70,71 @@ app.post("/api/auth/register", async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    user = new User({ username, email, password: hashedPassword, role: role || "buyer" });
+    // Create user with isVerified set to false by default
+    user = new User({ 
+      username, 
+      email, 
+      password: hashedPassword, 
+      role: role || "buyer",
+      isVerified: false 
+    });
+    
     await user.save();
 
-    const payload = { user: { id: user.id, role: user.role } };
-    jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" }, (err, token) => {
-      if (err) throw err;
-      res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
-    });
-  } catch (err) { res.status(500).send("Server error"); }
+    // Generate a temporary verification token (Expires in 24h)
+    const verificationToken = jwt.sign(
+      { id: user.id }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: "1d" }
+    );
+
+    const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${verificationToken}`;
+
+    // Send the Verification Email via SendGrid
+    const msg = {
+      to: email,
+      from: process.env.EMAIL_FROM, // Must be verified in your SendGrid dashboard
+      subject: 'Verify your HashMarket Account',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h2 style="color: #0f172a;">Welcome to HashMarket!</h2>
+          <p style="color: #475569;">Click the button below to verify your email address and activate your account.</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verifyUrl}" style="background-color: #06b6d4; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold;">Verify Email Address</a>
+          </div>
+          <p style="font-size: 12px; color: #94a3b8;">Link expires in 24 hours.</p>
+        </div>
+      `,
+    };
+
+    await sgMail.send(msg);
+
+    res.json({ msg: "Registration successful! Please check your email." });
+  } catch (err) { 
+    console.error("Register Error:", err);
+    res.status(500).send("Server error"); 
+  }
+});
+
+// Verify Email Route
+app.get("/api/auth/verify-email", async (req, res) => {
+  const { token } = req.query;
+  if (!token) return res.status(400).json({ msg: "Token is missing" });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (!user) return res.status(404).json({ msg: "User not found" });
+    if (user.isVerified) return res.status(200).json({ msg: "User already verified" });
+
+    user.isVerified = true;
+    await user.save();
+
+    res.status(200).json({ msg: "Email verified successfully! You can now log in." });
+  } catch (err) {
+    res.status(400).json({ msg: "Token is invalid or has expired." });
+  }
 });
 
 // Login User
@@ -82,6 +143,11 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ msg: "Invalid Credentials" });
+
+    // Block login if not verified
+    if (!user.isVerified) {
+      return res.status(401).json({ msg: "Please verify your email before logging in." });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ msg: "Invalid Credentials" });
@@ -98,7 +164,6 @@ app.post("/api/auth/login", async (req, res) => {
 // 2. SELLER & PROFILE ROUTES
 // =========================================================================
 
-// Onboard Seller (And save their payout wallet)
 app.post("/api/seller/onboard", auth, async (req, res) => {
   const { displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet } = req.body;
   try {
@@ -106,10 +171,10 @@ app.post("/api/seller/onboard", auth, async (req, res) => {
       user: req.user.id, displayName, tagline, bio, profileImage, mainCategory, skills, experienceLevel, languages, portfolio, socialLinks, payoutWallet
     };
 
-    // Update User model with wallet for easier access
+    // Update User model with wallet for easier access in orders
     await User.findByIdAndUpdate(req.user.id, { 
       role: "seller", 
-      wallet_address: payoutWallet // Save wallet to User model too
+      wallet_address: payoutWallet 
     });
 
     let profile = await SellerProfile.findOne({ user: req.user.id });
@@ -128,7 +193,6 @@ app.post("/api/seller/onboard", auth, async (req, res) => {
 // 3. MARKETPLACE ROUTES
 // =========================================================================
 
-// GET ALL LISTINGS
 app.get("/api/listings", async (req, res) => {
   const { seller, cat } = req.query;
   try {
@@ -139,7 +203,6 @@ app.get("/api/listings", async (req, res) => {
     }
     if (cat) filter.category = { $regex: cat.replace('-', ' '), $options: "i" };
 
-    // Populate seller and their wallet address
     const listings = await Listing.find(filter).populate("seller", "username wallet_address created_at");
     
     const formatted = listings.map(item => ({
@@ -152,10 +215,8 @@ app.get("/api/listings", async (req, res) => {
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// GET SINGLE LISTING (Crucial for Checkout)
 app.get("/api/listings/:id", async (req, res) => {
   try {
-    // We populate 'wallet_address' so the frontend can send it to the Escrow contract
     const listing = await Listing.findById(req.params.id).populate("seller", "username wallet_address created_at");
     if (!listing) return res.status(404).json({ msg: "Item not found" });
     
@@ -163,13 +224,12 @@ app.get("/api/listings/:id", async (req, res) => {
     res.json({
       ...listing._doc,
       sellerName: listing.seller.username,
-      sellerWalletAddress: listing.seller.wallet_address, // Needed for createOrder()
+      sellerWalletAddress: listing.seller.wallet_address,
       sellerImage: profile?.profileImage || profile?.profile_image
     });
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Create New Listing
 app.post("/api/listings", auth, async (req, res) => {
   try {
     const newListing = new Listing({
@@ -190,7 +250,6 @@ app.post("/api/listings", auth, async (req, res) => {
 // 4. ORDERS & DASHBOARD
 // =========================================================================
 
-// Create Order after Blockchain Payment
 app.post("/api/orders", auth, async (req, res) => {
   try {
     const { listingId, amount, txHash } = req.body;
@@ -204,14 +263,13 @@ app.post("/api/orders", auth, async (req, res) => {
       amount, 
       txHash, 
       itemTitle: listing.title, 
-      status: "PAID" // Initial state after buyer deposits to contract
+      status: "PAID"
     });
     const order = await newOrder.save();
     res.json(order);
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Dashboard Data
 app.get("/api/dashboard", auth, async (req, res) => {
   try {
     const purchases = await Order.find({ buyer: req.user.id }).sort({ createdAt: -1 });
@@ -234,7 +292,6 @@ app.get("/api/dashboard", auth, async (req, res) => {
   } catch (err) { res.status(500).send("Server Error"); }
 });
 
-// Update Order Status (e.g., PAID -> SHIPPED -> COMPLETED)
 app.put("/api/orders/:id/status", auth, async (req, res) => {
   try {
     const { status } = req.body;
@@ -246,6 +303,7 @@ app.put("/api/orders/:id/status", auth, async (req, res) => {
 // =========================================================================
 // 5. ADMIN ROUTES
 // =========================================================================
+
 app.get("/api/admin/listings", adminAuth, async (req, res) => {
   try {
     const listings = await Listing.find({ status: "PENDING" }).populate("seller", "username");
@@ -259,6 +317,56 @@ app.put("/api/admin/moderate/:id", adminAuth, async (req, res) => {
     const listing = await Listing.findByIdAndUpdate(req.params.id, { status }, { new: true });
     res.json(listing);
   } catch (err) { res.status(500).send("Server Error"); }
+});
+
+// =========================================================================
+// 6. SUPPORT & CONTACT ROUTES (NEW!)
+// =========================================================================
+
+app.post("/api/support/contact", auth, async (req, res) => {
+  const { subject, message } = req.body;
+  
+  try {
+    // 1. Get the user's details
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ msg: "User not found" });
+
+    // 2. Email the Admin (YOU)
+    const adminMsg = {
+      to: process.env.ADMIN_EMAIL, // hashmarketofficial@gmail.com
+      from: process.env.EMAIL_FROM, // Your Verified Sender Identity
+      replyTo: user.email, // Allows you to reply directly to the user
+      subject: `[Support] ${subject} - ${user.username}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee;">
+          <h2 style="color: #06b6d4;">New Support Ticket</h2>
+          <p><strong>User:</strong> ${user.username} (${user.email})</p>
+          <p><strong>Role:</strong> ${user.role}</p>
+          <p><strong>Wallet:</strong> ${user.wallet_address || "Not connected"}</p>
+          <hr />
+          <h3>${subject}</h3>
+          <p style="background: #f9f9f9; padding: 15px; border-radius: 5px;">${message}</p>
+        </div>
+      `,
+    };
+
+    await sgMail.send(adminMsg);
+
+    // 3. Send Confirmation to User
+    const userMsg = {
+      to: user.email,
+      from: process.env.EMAIL_FROM,
+      subject: "We received your support request",
+      html: `<p>Hi ${user.username}, we received your message regarding "<strong>${subject}</strong>". Our team will reply shortly.</p>`
+    };
+    await sgMail.send(userMsg);
+
+    res.json({ msg: "Support request sent successfully" });
+
+  } catch (err) {
+    console.error("Support Email Error:", err);
+    res.status(500).send("Server Error");
+  }
 });
 
 // --- START SERVER ---
