@@ -8,7 +8,7 @@ const SellerProfileSchema = new mongoose.Schema({
     unique: true,
   },
 
-  // MUST MATCH backend index.js
+  // Must match backend fields
   displayName: { type: String, default: "" },
   tagline: { type: String, default: "" },
   bio: { type: String, default: "" },
@@ -24,7 +24,13 @@ const SellerProfileSchema = new mongoose.Schema({
   socialLinks: { type: Object, default: {} },
   payoutWallet: { type: String, default: "" },
 
-  created_at: { type: Date, default: Date.now },
+  created_at: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-module.exports = mongoose.model("SellerProfile", SellerProfileSchema);
+// ✅ FIX OverwriteModelError
+module.exports =
+  mongoose.models.SellerProfile ||
+  mongoose.model("SellerProfile", SellerProfileSchema);

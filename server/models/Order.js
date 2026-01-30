@@ -2,18 +2,46 @@ const mongoose = require("mongoose");
 
 const OrderSchema = new mongoose.Schema(
   {
-    buyer: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    seller: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    listing: { type: mongoose.Schema.Types.ObjectId, ref: "Listing", required: true },
+    buyer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-    amount: { type: Number, required: true },
+    seller: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-    itemTitle: { type: String, default: "" },
-    txHash: { type: String, default: "" },
+    listing: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Listing",
+      required: true,
+    },
 
-    status: { type: String, default: "PAID" },
+    amount: {
+      type: Number,
+      required: true,
+    },
+
+    itemTitle: {
+      type: String,
+      default: "",
+    },
+
+    txHash: {
+      type: String,
+      default: "",
+    },
+
+    status: {
+      type: String,
+      default: "PAID",
+    },
   },
   { timestamps: true } // gives createdAt + updatedAt
 );
 
-module.exports = mongoose.model("Order", OrderSchema);
+// ✅ FIX OverwriteModelError
+module.exports = mongoose.models.Order || mongoose.model("Order", OrderSchema);

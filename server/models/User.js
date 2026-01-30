@@ -1,28 +1,56 @@
 const mongoose = require("mongoose");
 
-const ListingSchema = new mongoose.Schema({
-  seller: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User",
+const UserSchema = new mongoose.Schema({
+  username: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+  },
+
+  password: {
+    type: String,
     required: true,
   },
 
-  title: { type: String, required: true, trim: true },
-  description: { type: String, required: true, trim: true },
-  price: { type: Number, required: true },
-
-  category: { type: String, required: true, trim: true },
-
-  // IMPORTANT: do NOT make required, because missing image causes Server Error
-  image_url: { type: String, default: "" },
-
-  status: {
+  role: {
     type: String,
-    enum: ["PENDING", "APPROVED", "REJECTED", "SOLD"],
-    default: "PENDING",
+    enum: ["buyer", "seller", "admin"],
+    default: "buyer",
   },
 
-  created_at: { type: Date, default: Date.now },
+  // Email verification
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+
+  // Wallet address
+  wallet_address: {
+    type: String,
+    unique: true,
+    sparse: true,
+    lowercase: true,
+    trim: true,
+  },
+
+  onboardingCompleted: {
+    type: Boolean,
+    default: false,
+  },
+
+  created_at: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-module.exports = mongoose.model("Listing", ListingSchema);
+// ✅ FIX OverwriteModelError
+module.exports = mongoose.models.User || mongoose.model("User", UserSchema);
