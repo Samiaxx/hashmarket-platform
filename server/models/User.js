@@ -1,49 +1,28 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const UserSchema = new mongoose.Schema({
-  username: { 
-    type: String, 
+const ListingSchema = new mongoose.Schema({
+  seller: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
     required: true,
-    trim: true 
   },
-  email: { 
-    type: String, 
-    required: true, 
-    unique: true,
-    lowercase: true,
-    trim: true 
+
+  title: { type: String, required: true, trim: true },
+  description: { type: String, required: true, trim: true },
+  price: { type: Number, required: true },
+
+  category: { type: String, required: true, trim: true },
+
+  // IMPORTANT: do NOT make required, because missing image causes Server Error
+  image_url: { type: String, default: "" },
+
+  status: {
+    type: String,
+    enum: ["PENDING", "APPROVED", "REJECTED", "SOLD"],
+    default: "PENDING",
   },
-  password: { 
-    type: String, 
-    required: true 
-  },
-  role: { 
-    type: String, 
-    enum: ['buyer', 'seller', 'admin'], 
-    default: 'buyer' 
-  },
-  // --- SENDGRID VERIFICATION ---
-  isVerified: { 
-    type: Boolean, 
-    default: false 
-  },
-  // --- WEB3 PAYOUTS ---
-  wallet_address: { 
-    type: String, 
-    unique: true, 
-    sparse: true,
-    lowercase: true 
-  },
-  // --- THE GATEKEEPER FLAG (NEW) ---
-  // If a seller has this set to false, the dashboard will kick them back to onboarding
-  onboardingCompleted: { 
-    type: Boolean, 
-    default: false 
-  },
-  created_at: { 
-    type: Date, 
-    default: Date.now 
-  }
+
+  created_at: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('User', UserSchema);
+module.exports = mongoose.model("Listing", ListingSchema);

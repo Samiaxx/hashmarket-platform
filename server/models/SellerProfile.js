@@ -1,9 +1,30 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
+
 const SellerProfileSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
-  display_name: String, tagline: String, bio: String, profile_image: String,
-  main_category: String, skills: [String], experience_level: String,
-  languages: Array, portfolio: Array, social_links: Object, payout_wallet: String,
-  created_at: { type: Date, default: Date.now }
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    required: true,
+    unique: true,
+  },
+
+  // MUST MATCH backend index.js
+  displayName: { type: String, default: "" },
+  tagline: { type: String, default: "" },
+  bio: { type: String, default: "" },
+  profileImage: { type: String, default: "" },
+
+  mainCategory: { type: String, default: "" },
+  skills: { type: [String], default: [] },
+  experienceLevel: { type: String, default: "" },
+
+  languages: { type: Array, default: [] },
+  portfolio: { type: Array, default: [] },
+
+  socialLinks: { type: Object, default: {} },
+  payoutWallet: { type: String, default: "" },
+
+  created_at: { type: Date, default: Date.now },
 });
-module.exports = mongoose.model('SellerProfile', SellerProfileSchema);
+
+module.exports = mongoose.model("SellerProfile", SellerProfileSchema);
