@@ -1,13 +1,13 @@
-import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import API_URL from "../lib/api";
 import Link from "next/link";
 
 export default function VerifyEmail() {
   const router = useRouter();
   const { token } = router.query;
 
-  const [loading, setLoading] = useState(true);
-  const [ok, setOk] = useState(false);
+  const [status, setStatus] = useState("loading"); // loading | success | error
   const [message, setMessage] = useState("Verifying your email...");
 
   useEffect(() => {
@@ -15,30 +15,20 @@ export default function VerifyEmail() {
 
     const verify = async () => {
       try {
-        setLoading(true);
-
-        // IMPORTANT: this must exist in your .env.local (frontend)
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-
-        const res = await fetch(`${apiUrl}/api/auth/verify-email?token=${token}`);
+        const res = await fetch(`${API_URL}/api/auth/verify-email?token=${token}`);
         const data = await res.json();
 
         if (!res.ok) {
-          setOk(false);
-          setMessage(data?.msg || "Verification failed.");
-          setLoading(false);
+          setStatus("error");
+          setMessage(data.msg || "Verification failed.");
           return;
         }
 
-        setOk(true);
-        setMessage(data?.msg || "Email verified successfully!");
-        setLoading(false);
-
-        setTimeout(() => router.push("/login"), 2500);
+        setStatus("success");
+        setMessage(data.msg || "Email verified successfully!");
       } catch (err) {
-        setOk(false);
-        setMessage("Something went wrong. Try again.");
-        setLoading(false);
+        setStatus("error");
+        setMessage("Server not reachable. Try again later.");
       }
     };
 
@@ -46,29 +36,40 @@ export default function VerifyEmail() {
   }, [token]);
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 20 }}>
-      <div style={{ width: "100%", maxWidth: 520, padding: 24, borderRadius: 14, background: "#0b0b0b", color: "white" }}>
-        <h1 style={{ fontSize: 24, marginBottom: 8 }}>Verify Email</h1>
+    <div className="min-h-screen flex items-center justify-center bg-[#0B0F19] p-6">
+      <div className="max-w-md w-full p-8 rounded-3xl border border-white/10 bg-slate-900/60 backdrop-blur-xl text-center">
+        <h1 className="text-2xl font-black text-white mb-3">
+          Email Verification
+        </h1>
 
-        {loading ? (
-          <p>{message}</p>
-        ) : ok ? (
-          <>
-            <p style={{ color: "#22c55e" }}>{message}</p>
-            <p style={{ marginTop: 10, opacity: 0.8 }}>Redirecting to login...</p>
-          </>
-        ) : (
-          <>
-            <p style={{ color: "#ef4444" }}>{message}</p>
-            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
-              <Link href="/register" style={{ padding: "10px 14px", borderRadius: 10, background: "#2563eb", color: "white", textDecoration: "none" }}>
-                Register Again
-              </Link>
-              <Link href="/login" style={{ padding: "10px 14px", borderRadius: 10, background: "#333", color: "white", textDecoration: "none" }}>
-                Login
-              </Link>
-            </div>
-          </>
+        <p
+          className={`text-sm mb-6 ${
+            status === "success"
+              ? "text-green-400"
+              : status === "error"
+              ? "text-red-400"
+              : "text-slate-400"
+          }`}
+        >
+          {message}
+        </p>
+
+        {status === "success" && (
+          <Link
+            href="/login"
+            className="btn-brand w-full py-4 inline-flex justify-center"
+          >
+            Go to Login
+          </Link>
+        )}
+
+        {status === "error" && (
+          <button
+            onClick={() => router.push("/register")}
+            className="btn-brand w-full py-4"
+          >
+            Back to Register
+          </button>
         )}
       </div>
     </div>
