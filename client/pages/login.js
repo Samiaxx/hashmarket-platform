@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import API_URL from "../lib/api";
+import { apiRequest } from "../lib/api";
 
 export default function Login() {
   const router = useRouter();
@@ -12,7 +12,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   const handleAuthRedirect = (user) => {
-    if (user.role === "seller") router.push("/seller-onboarding");
+    if (user?.role === "seller") router.push("/seller-onboarding");
     else router.push("/dashboard");
   };
 
@@ -27,14 +27,10 @@ export default function Login() {
     setError("");
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/login`, {
+      const data = await apiRequest("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: formData,
       });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.msg || "Login failed");
 
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));

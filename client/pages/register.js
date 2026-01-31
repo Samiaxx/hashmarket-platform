@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Mail, ArrowRight, ShieldCheck } from "lucide-react";
-import API_URL from "../lib/api";
+import { apiRequest } from "../lib/api";
 
 export default function Register() {
   const [step, setStep] = useState("register"); // register | sent
@@ -24,20 +24,10 @@ export default function Register() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/api/auth/register`, {
+      await apiRequest("/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: form,
       });
-
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error("Server returned invalid response. Backend may be down.");
-      }
-
-      if (!res.ok) throw new Error(data.msg || "Registration failed");
 
       setStep("sent");
     } catch (err) {
